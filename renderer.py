@@ -6,6 +6,9 @@ class Renderer:
         self.solver = solver
         self.ax = ax
 
+    def handleEvent(self, event):
+        pass
+
     def show(self):
         p = self.solver.processImage()
         self.ax.scatter(p[0], p[1], s=5, alpha=0.2)
@@ -19,8 +22,8 @@ class Renderer:
                 rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
                 r'$D_{l}$: ' + f'{"{:.3e}".format(self.solver.getLensDistance())} kpc \n' +
                 rf'$D_s$: {"{:.3e}".format(self.solver.getSourceDistance())} kpc' + '\n' +
-                rf'jet direction: {self.solver.getSourceDirection()}$^o$')
-        title = rf'H0: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
+                rf'jet direction: {self.solver.getSourceDirection()}$^\circ$')
+        title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
 
         # data = (f'mass: {"{:.3e}".format(self.solver.getLensMass())} kg \n'
         #         f'e angle: {"{:.3e}".format(self.solver.getEinsteinRadius())} \'\' \n' +
@@ -44,5 +47,6 @@ class Renderer:
         plt.tick_params(axis='y', colors=g)
         # plt.legend(loc='best')
 
+        # cid = plt.connect('button_press_event', self.handleEvent)
         plt.show()
         

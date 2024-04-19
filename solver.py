@@ -15,7 +15,7 @@ class Lens:
 
 
 class Source:
-    def __init__(self, z=0.3365, center=[0, 0], direction=90, angle=0, length=0.1, num=1000) -> None:
+    def __init__(self, z=0.3365, center=[0, 0], direction=90, angle=0, num=1000, source_type='line',) -> None:
         '''
         :param z: redshift of Source
         :param center: center of the Source in angle plane (in arcseconds)
@@ -28,11 +28,12 @@ class Source:
         self.center = np.array(center)
         self.direction = direction
         length = self.D_s / np.radians(max(direction, 0.5)) * 5e-8
-        # self.points = self.createSource(length, direction, angle, num)
-        self.points = self.createFulledSource(length, 3e-3, direction, angle, num)
-        # self.points = self.createCircleSource(1e-2, 100)
 
-    def createSource(self, length, direction, angle, num):
+        self.points = self.createCylinderSource(length, 3e-3, direction, angle, num) if source_type == 'cylinder' \
+                 else self.createCircleSource(1e-2, 100) if source_type == 'circle' \
+                 else self.createLineSource(length, direction, angle, num)
+
+    def createLineSource(self, length, direction, angle, num):
         v = np.linspace([0, 0, 0], [0, 0, -length], num)
         v = self.rotateX(v, direction)
         v = self.rotateZ(v, angle)
@@ -48,7 +49,7 @@ class Source:
 
         return self.scale(np.array([x, y, d]).T)
 
-    def createFulledSource(self, length, radius, direction, angle, num):
+    def createCylinderSource(self, length, radius, direction, angle, num):
         # z = np.linspace(0, length, round(num ** (1 / 3) / 9))
         # theta = np.linspace(0, 2 * np.pi, round(num ** (1 / 3)) * 9)
         # radii = np.linspace(0, radius, round(num ** (1 / 3)))
@@ -102,7 +103,6 @@ class Solver:
     def __init__(self, lens, source) -> None:
         self.lens = lens
         self.source = source
-        # self.image = np.empty(len(self.source.points))
 
     def einsteinRadius(self, D_s):
         D_ls = self.lens.D_ls
