@@ -7,16 +7,59 @@ class Renderer:
         self.ax = ax
 
     def handleEvent(self, event):
-        pass
+        # print(event.key)
+        shift = [0.0, 0]
+        # print(event.key)
+        if event.key == 'right':
+            shift = [1.0, 0]
+            # print(self.solver.getLensCenter())
+        elif event.key == 'left':
+            shift = [-1.0, 0]
+        if event.key == 'up':
+            shift = [0, 1.0]
+        elif event.key == 'down':
+            shift = [0, -1.0]
+        self.solver.moveLens(shift)
+
+        angle = 0
+        if event.key == 'd':
+            angle = 1
+            print(self.solver.source.angle)
+        elif event.key == 'a':
+            angle = -1
+        # self.solver.rotateSource(angle)
+
+        direction = 0
+        if event.key == 'w':
+            direction = 1
+        elif event.key == 'z':
+            direction = -1
+
+        # self.solver.turnSource(angle, direction)
+        # self.solver.declineSource(direction)
+
+        if event.key == '=':
+            self.solver.increaseMass()
+            print(self.solver.getLensMass())
+        elif event.key == '-':
+            self.solver.decreaseMass()
+        self.show()
 
     def show(self):
+        self.ax.clear()
         p = self.solver.processImage()
         self.ax.scatter(p[0], p[1], s=5, alpha=0.2)
+
+        ll = self.solver.getLensCenter()
         e_an = self.solver.getEinsteinRadius()
         theta = np.linspace(0, 2 * np.pi, 100)
-        self.ax.plot(e_an * np.cos(theta), e_an * np.sin(theta), color=g, linestyle=':')
+
+        # self.ax.scatter(ll[0], ll[1], c='w')
+        self.ax.plot(e_an * np.cos(theta) + ll[0], e_an * np.sin(theta) + ll[1], color=g, linestyle=':')
         pp = self.solver.source.points.T
         self.ax.scatter(pp[0], pp[1], color=[0.9, 0.9, 0.9], alpha=0.1, s=5)
+
+
 
         data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
                 rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
@@ -39,14 +82,20 @@ class Renderer:
         self.ax.set_title(title, color=g)
 
         self.ax.set_facecolor([0.05, 0.05, 0.1])
-        lim = np.array([-e_an, e_an]) * 2
-        self.ax.set_xlim(self.solver.getLensCenter()[0] + lim)
-        self.ax.set_ylim(self.solver.getLensCenter()[1] + lim)
+        lim = np.array([-e_an, e_an]) * 3
+        # self.ax.set_xlim(self.solver.getLensCenter()[0] + lim)
+        # self.ax.set_ylim(self.solver.getLensCenter()[1] + lim)
+
+        self.ax.set_xlim(self.solver.getSourceCenter()[0] + lim)
+        self.ax.set_ylim(self.solver.getSourceCenter()[1] + lim)
         plt.grid(linestyle='--', color=g/2)
         plt.tick_params(axis='x', colors=g)
         plt.tick_params(axis='y', colors=g)
         # plt.legend(loc='best')
+        plt.draw()
 
-        # cid = plt.connect('button_press_event', self.handleEvent)
+    def start(self):
+        cid = plt.connect('key_press_event', self.handleEvent)
+        self.show()
         plt.show()
         

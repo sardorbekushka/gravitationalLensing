@@ -11,7 +11,7 @@ class Lens:
         '''
         self.D_ls = D_ls
         self.m = mass
-        self.center = center
+        self.center = np.array(center, dtype=float)
 
 
 class Source:
@@ -28,6 +28,7 @@ class Source:
         self.center = np.array(center)
         self.direction = direction
         length = self.D_s / np.radians(max(direction, 0.5)) * 5e-8
+        self.angle = angle
 
         self.points = self.createCylinderSource(length, 3e-3, direction, angle, num) if source_type == 'cylinder' \
                  else self.createCircleSource(1e-2, 100) if source_type == 'circle' \
@@ -139,6 +140,21 @@ class Source:
 
         return s
 
+    def unscale(self, points):
+        s = np.array(points)
+        s -= np.array([self.center[0], self.center[1], self.D_s])
+        s = s.T
+        s[0:2] /= arcsec / self.D_s
+
+        return s.T
+
+    def update(self, direction, angle):
+        s = self.unscale(self.points)
+        self.rotateX(self.rotateZ(s, -self.angle), -self.direction)
+        self.direction = direction
+        self.angle = angle
+        self.scale(self.rotateZ(self.rotateX(s, self.direction), self.angle))
+        self.points = s
 
 class Solver:
     def __init__(self, lens: Lens, source: Source) -> None:
@@ -148,6 +164,9 @@ class Solver:
         '''
         self.lens = lens
         self.source = source
+        self.stepMass = 5
+        self.stepPos = 5e-4
+        self.stepRot = 1
 
     def einsteinRadius(self, D_s):
         '''
@@ -203,6 +222,22 @@ class Solver:
 
         return np.transpose([pp for p in points for pp in p])
 
+    def moveLens(self, shift):
+        self.lens.center += np.array(shift) * self.stepPos
+
+    def increaseMass(self):
+        self.lens.m *= self.stepMass
+
+    def decreaseMass(self):
+        self.lens.m /= self.stepMass
+
+    def turnSource(self, ang, direct):
+        self.source.update(self.source.angle + ang * self.stepRot,
+                           self.source.direction + direct * self.stepRot)
+
+    def declineSource(self, k):
+        self.source.rotateY(self.source.points, k * self.stepRot)
+        self.source.direction += k * self.stepRot
     def getEinsteinRadius(self):
         return self.einsteinRadius(self.source.D_s)
 
