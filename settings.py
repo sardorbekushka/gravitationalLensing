@@ -16,5 +16,5 @@ rc('text.latex', preamble=r'\usepackage[utf8]{inputenc}')
 rc('text.latex', preamble=r'\usepackage[russian]{babel}')
 rc('axes', edgecolor=g)
 
-plt.figure(facecolor='black')
+plt.figure(figsize=(8.7, 7), facecolor='black')
 arcsec = 180 * 3600 / np.pi

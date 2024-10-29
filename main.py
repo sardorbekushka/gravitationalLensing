@@ -2,9 +2,11 @@ from settings import *
 from solver import *
 from renderer import *
 
-
-solver = Solver(Lens(mass=constants.M_sun.value * 1e12, D_ls=50, center=np.array([0, 0])),
-                Source(z=0.3365, center=[0, 0], direction=5, angle=0, num=10000, source_type='cylinder'))
+#
+# solver = Solver(Lens(mass=constants.M_sun.value * 4e9, D_ls=6.8, center=np.array([0, 0])),
+#                 Source(z=0.3365, center=[0, 0], direction=1e-2, angle=0, num=2000, source_type='line'))
+solver = Solver(Lens(mass=constants.M_sun.value * 4e10, D_ls=6.8, center=np.array([0, 0])),
+                Source(z=0.3365, center=[0, 0], direction=1e-1, angle=0, num=100, source_type='line'))
 
 ax = plt.axes()
 renderer = Renderer(solver, ax)
