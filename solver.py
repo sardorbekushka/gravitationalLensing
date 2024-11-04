@@ -16,7 +16,7 @@ class Lens:
 
 
 class Source:
-    def __init__(self, z=0.3365, center=[0, 0], direction=0, angle=0, num=1000, source_type='line',) -> None:
+    def __init__(self, z=0.3365, center=[0, 0], direction=0, angle=0, num=1000, source_type='line', length=10, radius=3e-5) -> None:
         '''
         :param z: redshift of Source
         :param center: center of the Source in angle plane (in arcseconds)
@@ -28,11 +28,10 @@ class Source:
         self.D_s = model.angular_diameter_distance(self.z).to('kpc').value
         self.center = np.array(center)
         self.direction = direction
-        length = 10
         self.angle = angle
 
-        self.points = self.createCylinderSource(length, 3e-4, direction, angle, num) if source_type == 'cylinder' \
-                 else self.createCircleSource(1e-2, 100) if source_type == 'circle' \
+        self.points = self.createCylinderSource(length, radius, direction, angle, num) if source_type == 'cylinder' \
+                 else self.createCircleSource(5e-2, 100) if source_type == 'circle' \
                  else self.createLineSource(length, direction, angle, num)
 
     def createLineSource(self, length, direction, angle, num):
@@ -89,9 +88,9 @@ class Source:
         :return: an array of Source points
         '''
 
-        z = np.linspace(0, -length, round(num ** (1/3) * max(direction, 5) + 1))
-        theta = np.linspace(0, 2 * np.pi, 2 * round(num ** (1/3) + 1))
-        radii = np.linspace(0, radius, round(num ** (1/3) / max(direction, 1) / 1 + 1))
+        z = np.linspace(0, -length, round(num ** (1/3) * 10))
+        theta = np.linspace(0, 2 * np.pi, round(num ** (1/3) / 20))
+        radii = np.linspace(0, radius, round(num ** (1/3) * 2))
 
         R, A = np.meshgrid(radii, theta)
         x = R * np.cos(A)
@@ -163,8 +162,8 @@ class Solver:
         '''
         self.lens = lens
         self.source = source
-        self.stepMass = 5
-        self.stepPos = 1e-4
+        self.stepMass = 2
+        self.stepPos = 1e-5
         self.stepRot = 1
         self.D_l = self.source.D_s - self.lens.D_ls
 
@@ -197,42 +196,26 @@ class Solver:
         p = np.matrix(p_[0:2])
         D_s = p_[2]
 
-        # if D_s <= self.D_l:
-        #     pp = np.array(p)[0]
-        #
-        #     return np.array([pp, pp])
+        if D_s <= self.D_l:
+            pp = np.array(p)[0]
+
+            return np.array([pp, pp])
 
         dp = p - self.lens.center
         beta = np.linalg.norm(dp)
         beta2 = beta ** 2
         einstAngle = self.einsteinRadius(D_s)
-        # print(D_s - self.D_l, einstAngle)
         v = np.matrix([1, -1])
 
         angle = (beta + v * np.sqrt(beta2 + 4 * einstAngle ** 2)) / 2
-        # print()
         points = angle.T * dp / beta + self.lens.center
 
-        # print(points)
-
-        # p1, p2 = points
-        # m1 = self.magnification(p1[0], einstAngle)
-        # m2 = self.magnification(p2[0], einstAngle)
-        # # print(m1)
-        # # print(points, m)
-        # result = np.column_stack((points, [m1, m2]))
-        # # print(result)
         return np.array(points)
 
 
 
     def magnification(self, p, ea):
-        # print(p)
-        m = 1 / (1 - (ea / np.linalg.norm(p)) ** 4)
-        # print(m)
-        # print(ea, m)
-        # print(m)
-        # return np.abs(m) if not np.isnan(m) else 1
+        m = 1 / (1 - (ea / np.linalg.norm(p - self.lens.center)) ** 4)
         return 1 if ea == 0 else np.abs(m)
 
     def processImage(self):
@@ -240,37 +223,15 @@ class Solver:
         processes a whole image of the source
         :return: image coordinates of each point in source. format [[im1_x, im1_y], [im2_x, im2_y], ... ]
         '''
-        # ea = self.getEinsteinRadius()
-        # ea = self.einsteinRadius(self.source.points[2])
         points_ = list(map(lambda p: self.processPoint(p), self.source.points)) # здесь формат [[[p1_1.x, p1_1.y], [p1_2.x, p1_2.y]],   [[p2_1.x, ..]]]
-        # print(points_)
         points = [pp for p in points_ for pp in p]     # здесь формат [[p1_1.x, p1_1.y], [p1_2.x, p1_2.y], [p2_1.x, ..] ..]
-        # print(points)
-        # m = [self.magnification(p, ea) for p in points]
-        # eas = self.einsteinRadius(self.source.points.T[2])
+
         eas = list(map(lambda Ds: self.einsteinRadius(Ds), self.source.points.T[2]))
-        # print(points)
-        # print(eas)
         eas2 = [val for pair in zip(eas, eas) for val in pair]
-        # print(eas2)
+
         m = list(map(lambda p, ea: self.magnification(p, ea), points, eas2))
-        # print(m)
-        # print(m)
+
         return np.transpose(points), m
-        # return np.transpose([pp for p in points for pp in p])
-
-
-    def processImage_(self):
-        '''
-        processes a whole image of the source
-        :return: image coordinates of each point in source. format [[im1_x, im1_y], [im2_x, im2_y], ... ]
-        '''
-        points_ = list(map(lambda p: self.processPoint(p),
-                           self.source.points))  # здесь формат [[[p1_1.x, p1_1.y, m_p1_1], [p1_2.x, p1_2.y, m_p1_2]],   [[p2_1.x, ..]]]
-        # print(points_)
-        points = [pp for p in points_ for pp in p] # здесь формат [[p1_1.x, p1_1.y, m_p1_1], [p1_2.x, p1_2.y, m_p1_2], [p2_1.x, ..] ..]
-        print(points)
-        return np.transpose(points)
 
     def moveLens(self, shift):
         self.lens.center += np.array(shift) * self.stepPos
@@ -285,11 +246,10 @@ class Solver:
         self.lens.m /= self.stepMass
 
     def turnSource(self, ang, direct):
-        self.source.update(self.source.angle + ang * self.stepRot,
-                           self.source.direction + direct * self.stepRot)
+        self.source.update(self.source.direction + direct * self.stepRot,
+                           self.source.angle + ang * self.stepRot)
 
     def declineSource(self, k):
-        self.source.rotateY(self.source.points, k * self.stepRot)
         self.source.direction += k * self.stepRot
 
     def getEinsteinRadius(self):

@@ -5,7 +5,8 @@ import astropy.cosmology.funcs as cosmology
 from astropy.cosmology import LambdaCDM
 from matplotlib import rc
 
-model = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
+# model = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
+model = LambdaCDM(H0=67.8, Om0=0.308, Ode0=0.692)
 
 g = np.array([0.8, 0.8, 0.9])
 # rc('font', **{'family': 'Times new roman'})
