@@ -10,6 +10,7 @@ class Renderer:
         self.solver = solver
         self.ax = ax
         self.showSource = True
+        self.showMagnification = True
 
     def handleKeyEvent(self, event):
         # print(event.key)
@@ -24,35 +25,37 @@ class Renderer:
         elif event.key == 'down':
             shift = [0, -shift_size]
         self.solver.moveLens(shift)
-        if event.key == 'm':
+        if event.key == 'm' or event.key == 'ь':
+            self.showMagnification = not self.showMagnification
+        if event.key == 'enter':
             s = self.solver
             m = s.getLensMass()
             pos = s.getLensCenter()
             a = s.getSourceDirection()
             plt.savefig(f'library/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_S{int(self.showSource)}.png', dpi=150)
-        angle = 0
-        if event.key == 'd':
-            angle = 1
-        elif event.key == 'a':
-            angle = -1
-        # self.solver.rotateSource(angle)
-
-        direction = 0
-        if event.key == 'w':
-            direction = 1
-        elif event.key == 'z':
-            direction = -1
-
-        # self.solver.turnSource(angle, direction)
-        # self.solver.declineSource(direction)
 
         if event.key == '=':
             self.solver.increaseMass()
         elif event.key == '-':
             self.solver.decreaseMass()
 
-        if event.key == 'enter':
+        if event.key == 's' or event.key == 'ы':
             self.showSource = not self.showSource
+        # angle = 0
+        # if event.key == 'd':
+        #     angle = 1
+        # elif event.key == 'a':
+        #     angle = -1
+        # self.solver.rotateSource(angle)
+
+        # direction = 0
+        # if event.key == 'w':
+        #     direction = 1
+        # elif event.key == 'z':
+        #     direction = -1
+
+        # self.solver.turnSource(angle, direction)
+        # self.solver.declineSource(direction)
 
         self.show()
 
@@ -68,13 +71,20 @@ class Renderer:
         self.ax.clear()
         p, m = self.solver.processImage()
 
-        pp = self.solver.source.points.T
-        if self.showSource:
-            self.ax.scatter(pp[0], pp[1], color=g, alpha=1, s=5)
+        order = np.arange(0, len(self.solver.source.points))
 
         m = np.log(m)
+        order2 = [val for pair in zip(order, order) for val in pair]
 
-        scatter = self.ax.scatter(p[0], p[1], c=m, cmap='inferno', s=5, vmin=-3, vmax=3)
+        scatter = self.ax.scatter(p[0], p[1], c=m, cmap='inferno', s=5, vmin=-3, vmax=3) if self.showMagnification\
+            else self.ax.scatter(p[0], p[1], c=order2, cmap='viridis', s=5)
+
+        pp = self.solver.source.points.T
+        if self.showSource:
+            if self.showMagnification:
+                self.ax.scatter(pp[0], pp[1], color=g, s=5)
+            else:
+                self.ax.scatter(pp[0], pp[1], c=order, cmap='viridis', alpha=0.2, s=5)
 
         ll = self.solver.getLensCenter()
         e_an = self.solver.getEinsteinRadius()
@@ -98,10 +108,11 @@ class Renderer:
         self.ax.set_title(title, color=g)
 
         self.ax.set_facecolor([0.05, 0.05, 0.1])
-        lim = np.array([-e_an, e_an]) * 3
+        limx = np.array([-e_an, e_an]) * 3
+        limy = np.array([4 * e_an, -2 * e_an]) * np.sign(self.solver.getSourceDirection())
 
-        self.ax.set_xlim(self.solver.getSourceCenter()[0] + lim)
-        self.ax.set_ylim(self.solver.getSourceCenter()[1] + lim)
+        self.ax.set_xlim(self.solver.getSourceCenter()[0] + limx)
+        self.ax.set_ylim(self.solver.getSourceCenter()[1] + limy)
         plt.grid(linestyle='--', color=g/2)
         plt.tick_params(axis='x', colors=g)
         plt.tick_params(axis='y', colors=g)
@@ -115,6 +126,9 @@ class Renderer:
         mouseClick_id = plt.connect('button_press_event', self.handleMouseEvent)
 
         cbar = plt.colorbar(self.show(), ax=self.ax)
-        cbar.set_label('ln(magnification)', color=g)
+        if self.showMagnification:
+            cbar.set_label('ln(magnification)', color=g)
+        else:
+            cbar.remove()
         cbar.ax.tick_params(labelcolor=g)
         plt.show()
