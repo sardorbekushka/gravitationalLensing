@@ -29,7 +29,9 @@ class Source:
         self.center = np.array(center)
         self.direction = direction
         self.angle = angle
+        self.length = length
 
+        self.num = num
         self.points = self.createCylinderSource(length, radius, direction, angle, num) if source_type == 'cylinder' \
                  else self.createCircleSource(5e-2, 100) if source_type == 'circle' \
                  else self.createLineSource(length, direction, angle, num)
@@ -88,9 +90,12 @@ class Source:
         :return: an array of Source points
         '''
 
-        z = np.linspace(0, -length, round(num ** (1/3) * 10))
-        theta = np.linspace(0, 2 * np.pi, round(num ** (1/3) / 20))
-        radii = np.linspace(0, radius, round(num ** (1/3) * 2))
+        # z = np.linspace(0, -length, round(num ** (1/3) * 10))
+        # theta = np.linspace(0, 2 * np.pi, round(num ** (1/3) / 20))
+        # radii = np.linspace(0, radius, round(num ** (1/3) * 2))
+        z = np.linspace(-length, 0, num // 40)
+        theta = np.linspace(0, 2 * np.pi, 4)
+        radii = np.linspace(0, radius, 10)
 
         R, A = np.meshgrid(radii, theta)
         x = R * np.cos(A)
@@ -153,6 +158,13 @@ class Source:
         self.scale(self.rotateZ(self.rotateX(s, self.direction), self.angle))
         self.points = s
 
+    def setDirection(self, d):
+        self.direction = d
+        self.setPoints(self.createCylinderSource(self.length, 3e-5, d, self.angle, self.num))
+
+    def setPoints(self, points):
+        self.points = points
+
 
 class Solver:
     def __init__(self, lens: Lens, source: Source) -> None:
@@ -164,7 +176,7 @@ class Solver:
         self.source = source
         self.stepMass = 2
         self.stepPos = 1e-5
-        self.stepRot = 1
+        self.stepRot = 0.1
         self.D_l = self.source.D_s - self.lens.D_ls
 
     def einsteinRadius(self, D_s):
@@ -213,7 +225,6 @@ class Solver:
         return np.array(points)
 
 
-
     def magnification(self, p, ea):
         m = 1 / (1 - (ea / np.linalg.norm(p - self.lens.center)) ** 4)
         return 1 if ea == 0 else np.abs(m)
@@ -245,12 +256,18 @@ class Solver:
     def decreaseMass(self):
         self.lens.m /= self.stepMass
 
+    def setMass(self, M):
+        self.lens.m = M
+
     def turnSource(self, ang, direct):
         self.source.update(self.source.direction + direct * self.stepRot,
                            self.source.angle + ang * self.stepRot)
 
+    def setDirection(self, d):
+        self.source.setDirection(d)
+
     def declineSource(self, k):
-        self.source.direction += k * self.stepRot
+        self.setDirection(self.source.direction + k * self.stepRot)
 
     def getEinsteinRadius(self):
         return self.einsteinRadius(self.source.D_s)

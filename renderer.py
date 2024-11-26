@@ -48,14 +48,9 @@ class Renderer:
         #     angle = -1
         # self.solver.rotateSource(angle)
 
-        # direction = 0
-        # if event.key == 'w':
-        #     direction = 1
-        # elif event.key == 'z':
-        #     direction = -1
-
-        # self.solver.turnSource(angle, direction)
-        # self.solver.declineSource(direction)
+        if event.key == 'w' or event.key == 'z':
+            direction = 1 if event.key == 'w' else -1
+            self.solver.declineSource(direction)
 
         self.show()
 
@@ -96,20 +91,21 @@ class Renderer:
                 rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
                 rf'$z_s$: {self.solver.source.z}' + '\n' +
                 r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
-                rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')# + '\n' +
+                rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$' + 'добавить центр линзы')# + '\n' +
                 # f'Re = {"{:.3e}".format(self.solver.getLensDistance() * self.solver.getEinsteinRadius() / arcsec)} kpc \n' +
                 # f'Dl = {"{:.3e}".format(self.solver.getLensDistance())} kpc')
         title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
 
         bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
+        textpos = [0.73, 0.95]
         self.ax.text(0.73, 0.95, data, fontsize=9, bbox=bbox, color=g,
                      horizontalalignment='left', verticalalignment='top',
                      transform=self.ax.transAxes)
         self.ax.set_title(title, color=g)
 
         self.ax.set_facecolor([0.05, 0.05, 0.1])
-        limx = np.array([-e_an, e_an]) * 3
-        limy = np.array([4 * e_an, -2 * e_an]) * np.sign(self.solver.getSourceDirection())
+        limx = np.array(lim[0]) * 1e-3 if lim else np.array([-e_an, e_an]) * 3
+        limy = np.array(lim[1]) * 1e-3 if lim else np.array([4 * e_an, -2 * e_an]) * np.sign(self.solver.getSourceDirection())
 
         self.ax.set_xlim(self.solver.getSourceCenter()[0] + limx)
         self.ax.set_ylim(self.solver.getSourceCenter()[1] + limy)
@@ -132,3 +128,28 @@ class Renderer:
             cbar.remove()
         cbar.ax.tick_params(labelcolor=g)
         plt.show()
+
+    def gif(self):
+        cbar = plt.colorbar(self.show(), ax=self.ax)
+        cbar.set_label('ln(magnification)', color=g)
+        cbar.ax.tick_params(labelcolor=g)
+        # while self.solver.getLensCenter[0] < 2e-3:
+        for i in range(100):
+            plt.savefig(f'images/image{i}.png', dpi=150)
+            self.solver.moveLens([5, 0])
+            self.show()
+
+        # для галлереи аналогично можно в цикле посоздавать изображения. условно for angle in range(A1, A2):
+        #                                                                            for m in range(M1, M2):
+        #                                                                                 for D_ls in range(D1, D2):
+        #                                                                                      ... и координаты
+
+    # def createGallery(self, M, X, Y, D_ls, A):
+    #     for m in M:
+    #         for d in D_ls:
+    #             for a in A:
+    #                 for y in Y:
+    #                     for x in X:
+    #                         l = a
+    #                         length = 111
+
