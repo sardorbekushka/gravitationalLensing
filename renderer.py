@@ -11,6 +11,7 @@ class Renderer:
         self.ax = ax
         self.showSource = True
         self.showMagnification = True
+        self.showData = True
 
     def handleKeyEvent(self, event):
         # print(event.key)
@@ -98,9 +99,11 @@ class Renderer:
 
         bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
         textpos = [0.73, 0.95]
-        self.ax.text(0.73, 0.95, data, fontsize=9, bbox=bbox, color=g,
-                     horizontalalignment='left', verticalalignment='top',
-                     transform=self.ax.transAxes)
+        if self.showData:
+            self.ax.text(0.73, 0.95, data, fontsize=9, bbox=bbox, color=g,
+                         horizontalalignment='left', verticalalignment='top',
+                         transform=self.ax.transAxes)
+
         self.ax.set_title(title, color=g)
 
         self.ax.set_facecolor([0.05, 0.05, 0.1])
@@ -143,13 +146,3 @@ class Renderer:
         #                                                                            for m in range(M1, M2):
         #                                                                                 for D_ls in range(D1, D2):
         #                                                                                      ... и координаты
-
-    # def createGallery(self, M, X, Y, D_ls, A):
-    #     for m in M:
-    #         for d in D_ls:
-    #             for a in A:
-    #                 for y in Y:
-    #                     for x in X:
-    #                         l = a
-    #                         length = 111
-
