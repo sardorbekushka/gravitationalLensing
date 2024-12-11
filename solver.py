@@ -32,9 +32,15 @@ class Source:
         self.length = length
 
         self.num = num
-        self.points = self.createCylinderSource(length, radius, direction, angle, num) if source_type == 'cylinder' \
-                 else self.createCircleSource(5e-2, 100) if source_type == 'circle' \
-                 else self.createLineSource(length, direction, angle, num)
+        self.points = self.createSource(source_type, radius)
+
+    def createSource(self, source_type='line', radius=3e-5):
+        if source_type == 'cylinder':
+            return self.createCylinderSource(self.length, radius, self.direction, self.angle, self.num)
+        elif source_type == 'circle':
+            return self.createCircleSource(5e-2, 100)
+        else:
+            return self.createLineSource(self.length, self.direction, self.angle, self.num)
 
     def createLineSource(self, length, direction, angle, num):
         '''
@@ -50,8 +56,8 @@ class Source:
         :return: an array of Source points
         '''
         v = np.linspace([0, 0, 0], [0, 0, -length], num)
-        v = self.rotateX(v, direction)
-        v = self.rotateZ(v, angle)
+        v = self.rotate(v, direction, axis='X', angle_is_degrees=True)
+        v = self.rotate(v, angle, axis='Z', angle_is_degrees=True)
 
         return self.scale(v)
 
@@ -71,9 +77,7 @@ class Source:
         x = radius * np.cos(theta)
         y = radius * np.sin(theta)
 
-        d = np.zeros(num)
-
-        return self.scale(np.array([x, y, d]).T)
+        return self.scale(np.column_stack([x, y, np.zeros(num)]))
 
     def createCylinderSource(self, length, radius, direction, angle, num):
         '''
@@ -106,28 +110,24 @@ class Source:
 
         points = np.vstack([X.ravel(), Y.ravel(), Z.ravel()]).T
 
-        return self.scale(self.rotateZ(self.rotateX(points, direction), angle))
+        return self.scale(self.rotate(points, direction, axis='X', angle_is_degrees=True))
 
-    def rotateX(self, points, angle):
-        cos = np.cos(np.radians(angle))
-        sin = np.sin(np.radians(angle))
-        A = np.array([[1, 0, 0], [0, cos, -sin], [0, sin, cos]])
+    def rotate(self, points, angle, axis, angle_is_degrees=True):
+        if angle_is_degrees:
+            angle = np.radians(angle)
+        if axis == 'X':
+            rotation_matrix = np.array(
+                [[1, 0, 0], [0, np.cos(angle), -np.sin(angle)], [0, np.sin(angle), np.cos(angle)]])
+        elif axis == 'Y':
+            rotation_matrix = np.array(
+                [[np.cos(angle), 0, np.sin(angle)], [0, 1, 0], [-np.sin(angle), 0, np.cos(angle)]])
+        elif axis == 'Z':
+            rotation_matrix = np.array(
+                [[np.cos(angle), np.sin(angle), 0], [-np.sin(angle), np.cos(angle), 0], [0, 0, 1]])
+        else:
+            raise ValueError("Unknown rotation axis")
 
-        return list(map(lambda p: A @ p, points))
-
-    def rotateZ(self, points, angle):
-        cos = np.cos(np.radians(angle))
-        sin = np.sin(np.radians(angle))
-        A = np.array([[cos, sin, 0], [-sin, cos, 0], [0, 0, 1]])
-
-        return list(map(lambda p: A @ p, points))
-
-    def rotateY(self, points, angle):
-        cos = np.cos(np.radians(angle))
-        sin = np.sin(np.radians(angle))
-        A = np.array([[cos, 0, sin], [0, 1, 0], [-sin, 0, cos]])
-
-        return list(map(lambda p: A @ p, points))
+        return np.dot(points, rotation_matrix.T)
 
     def scale(self, points):
         '''
@@ -135,28 +135,16 @@ class Source:
         :param points: an array of points
         :return:
         '''
-        s = np.array(points).T
-        s[0:2] *= arcsec / self.D_s
-        s = s.T
-        s += np.array([self.center[0], self.center[1], self.D_s])
+        points = np.array(points)
+        points[:, :2] *= arcsec / self.D_s
+        points += np.array([self.center[0], self.center[1], self.D_s])
+        return points
 
-        return s
 
     def unscale(self, points):
-        s = np.array(points)
-        s -= np.array([self.center[0], self.center[1], self.D_s])
-        s = s.T
-        s[0:2] /= arcsec / self.D_s
-
-        return s.T
-
-    def update(self, direction, angle):
-        s = self.unscale(self.points)
-        self.rotateX(self.rotateZ(s, -self.angle), -self.direction)
-        self.direction = direction
-        self.angle = angle
-        self.scale(self.rotateZ(self.rotateX(s, self.direction), self.angle))
-        self.points = s
+        points = np.array(points) - np.array([self.center[0], self.center[1], self.D_s])
+        points[:, :2] /= arcsec / self.D_s
+        return points
 
     def setDirection(self, d):
         self.direction = d
@@ -207,7 +195,6 @@ class Solver:
         '''
         p = np.matrix(p_[0:2])
         D_s = p_[2]
-
         if D_s <= self.D_l:
             pp = np.array(p)[0]
 
@@ -220,6 +207,7 @@ class Solver:
         v = np.matrix([1, -1])
 
         angle = (beta + v * np.sqrt(beta2 + 4 * einstAngle ** 2)) / 2
+
         points = angle.T * dp / beta + self.lens.center
 
         return np.array(points)
@@ -258,10 +246,6 @@ class Solver:
 
     def setMass(self, M):
         self.lens.m = M
-
-    def turnSource(self, ang, direct):
-        self.source.update(self.source.direction + direct * self.stepRot,
-                           self.source.angle + ang * self.stepRot)
 
     def setDirection(self, d):
         self.source.setDirection(d)
