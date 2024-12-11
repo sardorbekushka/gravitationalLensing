@@ -18,30 +18,28 @@ class Renderer:
         self.lens_circle = None
         self.initialize_plot()
 
-        # shift = [0.0, 0]
-        # shift_size = 0.5
-
-        # self.key_bindings = {
-        #     'right': lambda: self.solver.moveLens([shift_size, 0]),
-        #     'left': lambda: self.solver.moveLens([-shift_size, 0]),
-        #     'up': lambda: self.solver.moveLens([0, shift_size]),
-        #     'down': lambda: self.solver.moveLens([0, -shift_size]),
-        #     'm': lambda: setattr(self, 'showMagnification', not self.showMagnification),
-        #     'ь': lambda: setattr(self, 'showMagnification', not self.showMagnification),
-        #     '=': self.solver.increaseMass,
-        #     '-': self.solver.decreaseMass,
-        #     's': lambda: setattr(self, 'showSource', not self.showSource),
-        #     'ы': lambda: setattr(self, 'showSource', not self.showSource),
-        #     'enter': lambda: plt.savefig(self.generate_filename(), dpi=150)
-        #
-        # }
+        self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
+                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
+                     rf'$z_s$: {self.solver.source.z}' + '\n' +
+                     r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
+                     rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$') # + 'добавить центр линзы')# + '\n' +
+                    # f'Re = {"{:.3e}".format(self.solver.getLensDistance() * self.solver.getEinsteinRadius() / arcsec)} kpc \n' +
+                    # f'Dl = {"{:.3e}".format(self.solver.getLensDistance())} kpc')
+        self.title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
+        bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
+        self.text_block = self.ax.text(0.73, 0.95, self.data, fontsize=9, bbox=bbox,
+                                       color=g,
+                                       horizontalalignment='left', verticalalignment='top',
+                                       transform=self.ax.transAxes)
 
     def initialize_plot(self):
         self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=5, vmin=-3, vmax=3)
 
-        self.scatter_source = self.ax.scatter([], [], c=[], cmap='viridis', s=5)
+        self.scatter_source = self.ax.scatter([], [], c=g, cmap='viridis', s=5)
 
         self.lens_circle, = self.ax.plot([], [], color=g, linestyle=':')
+        self.scatter_source.set_zorder(1)
+        self.scatter_points.set_zorder(2)
 
     def generate_filename(self):
         s = self.solver
@@ -74,6 +72,8 @@ class Renderer:
 
         if event.key == 's' or event.key == 'ы':
             self.showSource = not self.showSource
+        if event.key == 'd' or event.key == 'в':
+            self.showData = not self.showData
         # angle = 0
         # if event.key == 'd':
         #     angle = 1
@@ -85,6 +85,7 @@ class Renderer:
             direction = 1 if event.key == 'w' else -1
             self.solver.declineSource(direction)
 
+        self.updateData()
         self.show()
 
     # def handleKeyEvent_(self, event):
@@ -99,7 +100,7 @@ class Renderer:
 
         self.show()
 
-    def show(self):
+    def show_(self):
         self.ax.clear()
         p, m = self.solver.processImage()
 
@@ -155,16 +156,91 @@ class Renderer:
 
         return scatter
 
+    def checkFlags(self, m):
+        if self.showMagnification:
+            self.scatter_points.set_array(np.log(m))
+            self.scatter_points.set_cmap('inferno')
+            self.scatter_source.set_facecolor(g)  # Используется фиксированный цвет
+            self.scatter_points.set_clim(vmin=-3, vmax=3)
+
+        else:
+            order = np.arange(len(self.solver.source.points))
+            order2 = [val for pair in zip(order, order) for val in pair]
+            self.scatter_points.set_array(order2)
+            self.scatter_points.set_cmap('viridis')
+            self.scatter_source.set_array(order)
+            self.scatter_source.set_cmap('viridis')
+            self.scatter_points.set_clim(vmin=order[0], vmax=order[-1])
+
+        self.scatter_source.set_visible(self.showSource)
+        self.text_block.set_visible(self.showData)
+
+
+    def updateData(self):
+        self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
+                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
+                     rf'$z_s$: {self.solver.source.z}' + '\n' +
+                     r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
+                     rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
+
+    def show(self):
+        # Получение новых данных
+        p, m = self.solver.processImage()
+        pp = self.solver.source.points.T
+        ll = self.solver.getLensCenter()
+        e_an = self.solver.getEinsteinRadius()
+        theta = np.linspace(0, 2 * np.pi, 100)
+
+        self.checkFlags(m)
+
+        # Обновление точек источника
+        # self.scatter_source.set_offsets(np.column_stack((pp[0], pp[1])))
+        self.scatter_source.set_offsets(pp.T)
+
+        # Обновление точек изображения
+        # self.scatter_points.set_offsets(np.column_stack((p[0], p[1])))
+        self.scatter_points.set_offsets(p.T)
+
+        # Обновление линии Эйнштейновского радиуса
+        x = e_an * np.cos(theta) + ll[0]
+        y = e_an * np.sin(theta) + ll[1]
+        self.lens_circle.set_data(x, y)
+
+        # Обновление остальных свойств (заголовков, меток, цветовых шкал)
+        self.ax.set_title(self.title)
+
+
+            # self.ax.text(0.73, 0.95, self.data, fontsize=9, bbox=bbox, color=g,
+            #              horizontalalignment='left', verticalalignment='top',
+            #              transform=self.ax.transAxes)
+        self.text_block.set_text(self.data)
+
+        limx = np.array(lim[0]) * 1e-3 if lim else np.array([-e_an, e_an]) * 3
+        limy = np.array(lim[1]) * 1e-3 if lim else np.array([4 * e_an, -2 * e_an]) * np.sign(
+            self.solver.getSourceDirection())
+        self.ax.set_xlim(self.solver.getSourceCenter()[0] + limx)
+        self.ax.set_ylim(self.solver.getSourceCenter()[1] + limy)
+        self.ax.set_facecolor([0.05, 0.05, 0.1])
+        plt.grid(linestyle='--', color=g / 2)
+        plt.tick_params(axis='x', colors=g)
+        plt.tick_params(axis='y', colors=g)
+        plt.draw()
+
+        return self.scatter_points
+
     def start(self):
         key_id = plt.connect('key_press_event', self.handleKeyEvent)
         mouseMove_id = plt.connect('motion_notify_event', self.handleMouseEvent)
         mouseClick_id = plt.connect('button_press_event', self.handleMouseEvent)
 
+        # cbar = plt.colorbar(self.show_(), ax=self.ax)
         cbar = plt.colorbar(self.show(), ax=self.ax)
-        if self.showMagnification:
-            cbar.set_label('ln(magnification)', color=g)
-        else:
-            cbar.remove()
+
+        # if self.showMagnification:
+        cbar.set_label('ln(magnification)', color=g)
+        # else:
+        #     cbar.set_label('order', color=g)
+            # cbar.remove()
         cbar.ax.tick_params(labelcolor=g)
         plt.show()
 
