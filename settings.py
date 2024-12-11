@@ -33,3 +33,4 @@ plt.figure(figsize=figsize, facecolor='black')
 arcsec = 180 * 3600 / np.pi
 rad = np.pi / 180
 L = 2e-2 # kpc
+plt.style.use('dark_background')
