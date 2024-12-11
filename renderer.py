@@ -13,6 +13,43 @@ class Renderer:
         self.showMagnification = True
         self.showData = True
 
+        self.scatter_points = None
+        self.scatter_source = None
+        self.lens_circle = None
+        self.initialize_plot()
+
+        # shift = [0.0, 0]
+        # shift_size = 0.5
+
+        # self.key_bindings = {
+        #     'right': lambda: self.solver.moveLens([shift_size, 0]),
+        #     'left': lambda: self.solver.moveLens([-shift_size, 0]),
+        #     'up': lambda: self.solver.moveLens([0, shift_size]),
+        #     'down': lambda: self.solver.moveLens([0, -shift_size]),
+        #     'm': lambda: setattr(self, 'showMagnification', not self.showMagnification),
+        #     'ь': lambda: setattr(self, 'showMagnification', not self.showMagnification),
+        #     '=': self.solver.increaseMass,
+        #     '-': self.solver.decreaseMass,
+        #     's': lambda: setattr(self, 'showSource', not self.showSource),
+        #     'ы': lambda: setattr(self, 'showSource', not self.showSource),
+        #     'enter': lambda: plt.savefig(self.generate_filename(), dpi=150)
+        #
+        # }
+
+    def initialize_plot(self):
+        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=5, vmin=-3, vmax=3)
+
+        self.scatter_source = self.ax.scatter([], [], c=[], cmap='viridis', s=5)
+
+        self.lens_circle, = self.ax.plot([], [], color=g, linestyle=':')
+
+    def generate_filename(self):
+        s = self.solver
+        m = s.getLensMass()
+        pos = s.getLensCenter()
+        a = s.getSourceDirection()
+        return f'library/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_S{int(self.showSource)}.png'
+
     def handleKeyEvent(self, event):
         # print(event.key)
         shift = [0.0, 0]
@@ -29,12 +66,7 @@ class Renderer:
         if event.key == 'm' or event.key == 'ь':
             self.showMagnification = not self.showMagnification
         if event.key == 'enter':
-            s = self.solver
-            m = s.getLensMass()
-            pos = s.getLensCenter()
-            a = s.getSourceDirection()
-            plt.savefig(f'library/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_S{int(self.showSource)}.png', dpi=150)
-
+            plt.savefig(self.generate_filename(), dpi=150)
         if event.key == '=':
             self.solver.increaseMass()
         elif event.key == '-':
@@ -54,6 +86,10 @@ class Renderer:
             self.solver.declineSource(direction)
 
         self.show()
+
+    # def handleKeyEvent_(self, event):
+    #     if event.key in self.key_bindings:
+    #         self.key_bindings[event.key]()
 
     def handleMouseEvent(self, event):
         if event.inaxes:
@@ -92,7 +128,7 @@ class Renderer:
                 rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
                 rf'$z_s$: {self.solver.source.z}' + '\n' +
                 r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
-                rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$' + 'добавить центр линзы')# + '\n' +
+                rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$') # + 'добавить центр линзы')# + '\n' +
                 # f'Re = {"{:.3e}".format(self.solver.getLensDistance() * self.solver.getEinsteinRadius() / arcsec)} kpc \n' +
                 # f'Dl = {"{:.3e}".format(self.solver.getLensDistance())} kpc')
         title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
@@ -141,8 +177,3 @@ class Renderer:
             plt.savefig(f'images/image{i}.png', dpi=150)
             self.solver.moveLens([5, 0])
             self.show()
-
-        # для галлереи аналогично можно в цикле посоздавать изображения. условно for angle in range(A1, A2):
-        #                                                                            for m in range(M1, M2):
-        #                                                                                 for D_ls in range(D1, D2):
-        #                                                                                      ... и координаты
