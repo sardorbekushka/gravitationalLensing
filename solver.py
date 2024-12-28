@@ -39,8 +39,18 @@ class Source:
             return self.createCylinderSource(self.length, radius, self.direction, self.angle, self.num)
         elif source_type == 'circle':
             return self.createCircleSource(5e-2, 100)
+        elif source_type == 'spiral':
+            return self.createSpiralSource(self.length, radius, self.direction, self.angle, self.num)
         else:
             return self.createLineSource(self.length, self.direction, self.angle, self.num)
+
+    def createSpiralSource(self, length, radius, direction, angle, num):
+        theta = np.linspace(0, 2 * np.pi, num // 3)
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
+        z = np.linspace(-length, 0, num // 3)
+
+        return self.scale(self.rotate(np.column_stack([x, y, z]), direction, axis='X', angle_is_degrees=True))
 
     def createLineSource(self, length, direction, angle, num):
         '''
