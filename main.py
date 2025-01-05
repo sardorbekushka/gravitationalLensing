@@ -25,7 +25,7 @@ if einst2 < einst ** 2:
 #                        num=1000, source_type='line', length=length, radius=3e-3))
 
 solver = Solver(Lens(mass=M, D_ls=D_ls, center=np.array([-1e-2, -2.4])),
-                Source(z=0.3365, center=[0, 0], source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7))
+                Source(z=0.3365, source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7))
 ax = plt.axes()
 renderer = Renderer(solver, ax)
 renderer.start()

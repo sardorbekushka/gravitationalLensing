@@ -15,11 +15,11 @@ class Renderer:
         self.showData = True
 
         self.scatter_points = None
-        # self.scatter_source = None
+        self.scatter_source = None
         self.lens_circle = None
-        # order = np.arange(len(self.solver.source.points))
-        # self.order = order
-        # self.order2 = [val for pair in zip(order, order) for val in pair]
+        order = np.arange(1)
+        self.order = order
+        self.order2 = [val for pair in zip(order, order) for val in pair]
 
         self.initialize_plot()
 
@@ -38,14 +38,18 @@ class Renderer:
                                        horizontalalignment='left', verticalalignment='top',
                                        transform=self.ax.transAxes)
 
-    def initialize_plot(self):
-        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=1, norm=colors.LogNorm(vmin=0.1, vmax=10))
-        # pp = self.solver.source.points.T
+    def updateOrder(self):
+        order = np.arange(len(self.solver.points))
+        self.order = order
 
-        # self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=5, alpha=0.01)
+    def initialize_plot(self):
+        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=10))
+        pp = self.solver.source.points.T
+
+        self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=0.5, alpha=0.5)
 
         self.lens_circle, = self.ax.plot([], [], color=g, linestyle=':')
-        # self.scatter_source.set_zorder(1)
+        self.scatter_source.set_zorder(1)
         self.scatter_points.set_zorder(2)
 
     def generate_filename(self):
@@ -85,6 +89,10 @@ class Renderer:
             direction = 1 if event.key == 'w' else -1
             self.solver.declineSource(direction)
 
+        if event.key == 'W' or event.key == 'Z':
+            k = 1 if event.key == 'Z' else -1
+            self.solver.moveDls(k)
+
         self.updateData()
         self.show()
 
@@ -100,49 +108,46 @@ class Renderer:
         if self.showMagnification:
             self.scatter_points.set_array(m)
             self.scatter_points.set_cmap('inferno')
-            # self.scatter_source.set_facecolor(g)  # Используется фиксированный цвет
-            # self.scatter_points.set_clim(vmin=-3, vmax=3)
+            self.scatter_source.set_facecolor(g)
+            self.scatter_points.set_norm(colors.LogNorm(vmin=0.1, vmax=10))
 
         else:
-            # self.scatter_points.set_array(self.order2)
+            self.scatter_points.set_array(self.order)
             self.scatter_points.set_cmap('viridis')
-            # self.scatter_source.set_array(self.order)
-            # self.scatter_source.set_cmap('viridis')
-            # self.scatter_points.set_clim(vmin=self.order[0], vmax=self.order[-1])
+            self.scatter_source.set_array(self.order)
+            self.scatter_source.set_cmap('viridis')
+            self.scatter_points.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
 
-        # self.scatter_source.set_visible(self.showSource)
+        self.scatter_source.set_visible(self.showSource)
         self.text_block.set_visible(self.showData)
 
     def updateData(self):
         self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
-                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
+                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
-        # pp = self.solver.source.points
-        # self.scatter_source.set_offsets(pp)
+        pp = self.solver.source.points
+        self.scatter_source.set_offsets(pp.T)
 
     def show(self):
         p, m = self.solver.processImage()
         ll = self.solver.getLensCenter()
         e_an = self.solver.getEinsteinRadius()
         theta = np.linspace(0, 2 * np.pi, 100)
-
+        self.updateOrder()
         self.checkFlags(m)
 
         self.scatter_points.set_offsets(p.T)
-
+        pp = self.solver.source.points
+        self.scatter_source.set_offsets(pp.T)
+        # print(pp)
         x = e_an * np.cos(theta) + ll[0]
         y = e_an * np.sin(theta) + ll[1]
         self.lens_circle.set_data(x, y)
 
-        self.text_block.set_text(self.data)#+ f'\ncount: {len(m) / 2}')
+        self.text_block.set_text(self.data)
 
-        # limx = np.array(lim[0]) if lim else np.array([-e_an, e_an]) * 3
-        # limy = np.array(lim[1]) if lim else np.array([4 * e_an, -2 * e_an]) * np.sign(
-        #     self.solver.getSourceDirection())
-
-        # self.ax.set_facecolor([0.05, 0.05, 0.1])
         self.ax.set_facecolor(g / 10)
         plt.grid(linestyle='--', color=g / 2)
         plt.tick_params(axis='x', colors=g)

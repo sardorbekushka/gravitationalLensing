@@ -17,7 +17,7 @@ class Lens:
 
 
 class Source:
-    def __init__(self, z=0.3365, center=[0, 0], source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7) -> None:
+    def __init__(self, z=0.3365, source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7) -> None:
         '''
         :param z: redshift of Source
         :param center: center of the Source in angle plane (in arcseconds)
@@ -27,9 +27,8 @@ class Source:
 
         self.z = z
         self.D_s = model.angular_diameter_distance(self.z).to('kpc').value
-        self.center = np.array(center)
 
-        self.points = []
+        self.points = np.array([[0, 0]])
 
         self.x0 = x0
         self.x1 = x1
@@ -38,7 +37,7 @@ class Source:
         self.d0 = d0
         self.d1 = d1
 
-        self.x, self.dls, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1) if source_type == 'line' else None
+        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1) if source_type == 'line' else None
 
     def createLineSource(self, x0, x1, y0, y1, d0, d1):
         '''
@@ -55,10 +54,10 @@ class Source:
         '''
 
         x = lambda y: (y - y0) / (y1 - y0) * (x1 - x0) + x0
-        dls = lambda y: (y - y0) / (y1 - y0) * (d1 - d0) + d0
+        d = lambda y: (y - y0) / (y1 - y0) * (d1 - d0) + d0
         angle = np.arctan(np.sqrt((y1 - y0) ** 2 + (x1 - x0) ** 2) * sec2deg / deg2rad / 1000 * self.D_s / (d1 - d0))
 
-        return x, dls, np.rad2deg(angle)
+        return x, d, np.rad2deg(angle)
 
     def updateLineSource(self, x0, x1, y0, y1, d0, d1):
         self.x0 = x0
@@ -68,19 +67,19 @@ class Source:
         self.d0 = d0
         self.d1 = d1
 
-        self.x, self.dls, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1)
+        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1)
 
         return self.direction
 
     def setPoints(self, p):
-        self.points = p
+        self.points = np.array(p)
 
 class Solver:
     def __init__(self, lens: Lens, source: Source) -> None:
-        '''
+        """
         :param lens: an object of the Lens class. the lens of the system
         :param source: an object of the Source class. the source of the system
-        '''
+        """
         self.lens = lens
         self.source = source
         self.stepMass = 1.2
@@ -112,7 +111,7 @@ class Solver:
 
     def processPoint(self, y):
         x = self.source.x(y)
-        d = self.source.dls(y)
+        d = self.source.d(y)
         self.points.append([x, y])
         p = np.array([x, y])
         dp = p - self.lens.center
@@ -135,7 +134,6 @@ class Solver:
 
     def processImage(self, dy_min=1e-6, dy_max=1e-2):
         self.points = []
-        ea0 = (self.k * self.lens.D_ls / (self.source.D_s - self.lens.D_ls)) ** 0.5
 
         y = self.source.y0
         dy = dy_max
@@ -144,7 +142,6 @@ class Solver:
         magn1 = []
         image2 = []
         magn2 = []
-        source = []
 
         im1, im2, m1, m2 = self.processPoint(y)
         image1.append(im1)
@@ -188,6 +185,13 @@ class Solver:
     def setLens(self, pos):
         self.lens.center = pos
 
+    def setDls(self, Dls):
+        self.lens.D_ls = Dls
+        self.D_l = self.source.D_s - self.lens.D_ls
+
+    def moveDls(self, k):
+        self.setDls(self.lens.D_ls + k * self.stepLength)
+
     def increaseMass(self):
         self.lens.m *= self.stepMass
         self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
@@ -226,7 +230,4 @@ class Solver:
 
     def getLensCenter(self):
         return self.lens.center
-
-    def getSourceCenter(self):
-        return self.source.center
 
