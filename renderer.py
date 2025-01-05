@@ -10,8 +10,10 @@ class Renderer:
         self.ax = ax
         self.ax.set_xlim([-2, 2])
         self.ax.set_ylim([-5, 2])
+        # self.ax.set_xlim([-0.25, 0.25])
+        # self.ax.set_ylim([-4.2, -3.2])
         self.showSource = True
-        self.showMagnification = True
+        self.showMagnification = False
         self.showData = True
 
         self.scatter_points = None
@@ -20,6 +22,7 @@ class Renderer:
         order = np.arange(1)
         self.order = order
         self.order2 = [val for pair in zip(order, order) for val in pair]
+        self.cbar = None
 
         self.initialize_plot()
 
@@ -45,10 +48,11 @@ class Renderer:
     def initialize_plot(self):
         self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=10))
         pp = self.solver.source.points.T
-
+        self.cbar = plt.colorbar(self.scatter_points, ax=self.ax)
+        self.cbar.set_label('magnification')
         self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=0.5, alpha=0.5)
 
-        self.lens_circle, = self.ax.plot([], [], color=g, linestyle=':')
+        self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
         self.scatter_source.set_zorder(1)
         self.scatter_points.set_zorder(2)
 
@@ -57,7 +61,7 @@ class Renderer:
         m = s.getLensMass()
         pos = s.getLensCenter()
         a = s.getSourceDirection()
-        return f'library/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_S{int(self.showSource)}.png'
+        return f'movingJet/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_y0{"{:.2e}".format(s.source.y0)}_S{int(self.showSource)}.png'
 
     def handleKeyEvent(self, event):
         shift = [0.0, 0]
@@ -110,6 +114,7 @@ class Renderer:
             self.scatter_points.set_cmap('inferno')
             self.scatter_source.set_facecolor(g)
             self.scatter_points.set_norm(colors.LogNorm(vmin=0.1, vmax=10))
+            self.cbar.set_label('magnification', color=g)
 
         else:
             self.scatter_points.set_array(self.order)
@@ -117,6 +122,8 @@ class Renderer:
             self.scatter_source.set_array(self.order)
             self.scatter_source.set_cmap('viridis')
             self.scatter_points.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
+            self.cbar.set_label('point order', color=g)
+
 
         self.scatter_source.set_visible(self.showSource)
         self.text_block.set_visible(self.showData)
@@ -141,7 +148,6 @@ class Renderer:
         self.scatter_points.set_offsets(p.T)
         pp = self.solver.source.points
         self.scatter_source.set_offsets(pp.T)
-        # print(pp)
         x = e_an * np.cos(theta) + ll[0]
         y = e_an * np.sin(theta) + ll[1]
         self.lens_circle.set_data(x, y)
@@ -149,7 +155,7 @@ class Renderer:
         self.text_block.set_text(self.data)
 
         self.ax.set_facecolor(g / 10)
-        plt.grid(linestyle='--', color=g / 2)
+        plt.grid(linestyle=':', color=g / 2)
         plt.tick_params(axis='x', colors=g)
         plt.tick_params(axis='y', colors=g)
 
@@ -162,11 +168,9 @@ class Renderer:
         mouseMove_id = plt.connect('motion_notify_event', self.handleMouseEvent)
         mouseClick_id = plt.connect('button_press_event', self.handleMouseEvent)
 
-        cbar = plt.colorbar(self.show(), ax=self.ax)
+        self.cbar.update_normal(self.show())
 
-        cbar.set_label('magnification', color=g)
-
-        cbar.ax.tick_params(labelcolor=g)
+        # cbar.ax.tick_params(labelcolor=g)
         plt.show()
 
     def gif(self):
