@@ -10,18 +10,19 @@ class Renderer:
         self.ax = ax
         self.ax.set_xlim([-2, 2])
         self.ax.set_ylim([-5, 2])
+        self.ax.set_xlabel('mas')
+        self.ax.set_ylabel('mas')
         # self.ax.set_xlim([-0.25, 0.25])
         # self.ax.set_ylim([-4.2, -3.2])
         self.showSource = True
-        self.showMagnification = False
+        self.showMagnification = True
         self.showData = True
 
-        self.scatter_points = None
+        self.scatter_image = None
         self.scatter_source = None
         self.lens_circle = None
-        order = np.arange(1)
-        self.order = order
-        self.order2 = [val for pair in zip(order, order) for val in pair]
+        self.order = None
+        # self.order2 = [val for pair in zip(order, order) for val in pair]
         self.cbar = None
 
         self.initialize_plot()
@@ -42,19 +43,19 @@ class Renderer:
                                        transform=self.ax.transAxes)
 
     def updateOrder(self):
-        order = np.arange(len(self.solver.points))
+        order = np.arange(len(self.solver.getSourcePoints()))
         self.order = order
 
     def initialize_plot(self):
-        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=10))
-        pp = self.solver.source.points.T
-        self.cbar = plt.colorbar(self.scatter_points, ax=self.ax)
+        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=10))
+        self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
         self.cbar.set_label('magnification')
-        self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=0.5, alpha=0.5)
+        self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.01)
 
         self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
         self.scatter_source.set_zorder(1)
-        self.scatter_points.set_zorder(2)
+        self.scatter_image.set_zorder(2)
+
 
     def generate_filename(self):
         s = self.solver
@@ -75,7 +76,7 @@ class Renderer:
         elif event.key == 'down':
             shift = [0, -shift_size]
         self.solver.moveLens(shift)
-        if event.key == 'm' or event.key == 'ь':
+        if event.key in ['m', 'ь']:
             self.showMagnification = not self.showMagnification
         if event.key == 'enter':
             plt.savefig(self.generate_filename(), dpi=150)
@@ -84,17 +85,17 @@ class Renderer:
         elif event.key == '-':
             self.solver.decreaseMass()
 
-        if event.key == 'h' or event.key == 'р':
+        if event.key in ['h', 'р']:
             self.showSource = not self.showSource
-        if event.key == 'd' or event.key == 'в':
+        if event.key in ['d', 'в']:
             self.showData = not self.showData
 
-        if event.key == 'w' or event.key == 'z':
-            direction = 1 if event.key == 'w' else -1
+        if event.key in ['w', 'z', 'ц', 'я']:
+            direction = 1 if event.key in ['w', 'ц'] else -1
             self.solver.declineSource(direction)
 
-        if event.key == 'W' or event.key == 'Z':
-            k = 1 if event.key == 'Z' else -1
+        if event.key in ['W', 'Z', 'Ц', 'Я']:
+            k = 1 if event.key in ['Z', 'Я'] else -1
             self.solver.moveDls(k)
 
         self.updateData()
@@ -110,18 +111,20 @@ class Renderer:
 
     def checkFlags(self, m):
         if self.showMagnification:
-            self.scatter_points.set_array(m)
-            self.scatter_points.set_cmap('inferno')
-            self.scatter_source.set_facecolor(g)
-            self.scatter_points.set_norm(colors.LogNorm(vmin=0.1, vmax=10))
+            self.scatter_image.set_array(m)
+            self.scatter_image.set_cmap('inferno')
+            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1, vmax=10))
+            self.scatter_source.set_array([10])
+            self.scatter_source.set_norm(colors.Normalize(vmin=1, vmax=2))
             self.cbar.set_label('magnification', color=g)
 
         else:
-            self.scatter_points.set_array(self.order)
-            self.scatter_points.set_cmap('viridis')
+            self.scatter_image.set_array(self.order)
+            self.scatter_image.set_cmap('viridis')
+            self.scatter_image.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
             self.scatter_source.set_array(self.order)
             self.scatter_source.set_cmap('viridis')
-            self.scatter_points.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
+            self.scatter_source.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
             self.cbar.set_label('point order', color=g)
 
 
@@ -134,8 +137,6 @@ class Renderer:
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
-        pp = self.solver.source.points
-        self.scatter_source.set_offsets(pp.T)
 
     def show(self):
         p, m = self.solver.processImage()
@@ -144,10 +145,10 @@ class Renderer:
         theta = np.linspace(0, 2 * np.pi, 100)
         self.updateOrder()
         self.checkFlags(m)
+        self.scatter_image.set_offsets(p.T)
+        pp = self.solver.getSourcePoints()
+        self.scatter_source.set_offsets(pp)
 
-        self.scatter_points.set_offsets(p.T)
-        pp = self.solver.source.points
-        self.scatter_source.set_offsets(pp.T)
         x = e_an * np.cos(theta) + ll[0]
         y = e_an * np.sin(theta) + ll[1]
         self.lens_circle.set_data(x, y)
@@ -161,7 +162,7 @@ class Renderer:
 
         plt.draw()
 
-        return self.scatter_points
+        return self.scatter_image
 
     def start(self):
         key_id = plt.connect('key_press_event', self.handleKeyEvent)
@@ -170,7 +171,6 @@ class Renderer:
 
         self.cbar.update_normal(self.show())
 
-        # cbar.ax.tick_params(labelcolor=g)
         plt.show()
 
     def gif(self):

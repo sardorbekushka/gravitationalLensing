@@ -150,8 +150,8 @@ class Solver:
         magn2.append(m2)
         i = 0
 
-        dmin = 5e-2
-        dmax = 1e-2
+        dmin = 5e-3
+        dmax = 1e-3
         # dmin = 1e-3
         # dmax = 1e-2
 
@@ -173,7 +173,6 @@ class Solver:
 
         im = np.concatenate([image1, image2])
         im = np.transpose(im)
-
         magn = np.concatenate([magn1, magn2])
         self.source.setPoints(self.points)
         # print(len(image1))
@@ -230,4 +229,7 @@ class Solver:
 
     def getLensCenter(self):
         return self.lens.center
+
+    def getSourcePoints(self):
+        return np.array(self.points)
 
