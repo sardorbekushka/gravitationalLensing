@@ -4,6 +4,7 @@ import astropy.constants as constants
 import astropy.cosmology.funcs as cosmology
 from astropy.cosmology import LambdaCDM
 from matplotlib import rc
+import matplotlib.colors as colors
 import os
 
 
@@ -28,7 +29,10 @@ lim = [[-2, 2], [-5, 2]] # [по горизонтали, по вертикали
 # else:
 #     figsize = (8.7, 7)
 #
-figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 8 * 1.24, 8) if lim else (8.7, 7)
+sec2deg = 1 / 3600
+deg2rad = np.pi / 180
+
+figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 7 * 1.24, 7) if lim else (5, 7)
 plt.figure(figsize=figsize, facecolor='black')
 arcsec = 180 * 3600 / np.pi
 rad = np.pi / 180

@@ -8,42 +8,44 @@ class Renderer:
     def __init__(self, solver, ax) -> None:
         self.solver = solver
         self.ax = ax
+        self.ax.set_xlim([-2, 2])
+        self.ax.set_ylim([-5, 2])
         self.showSource = True
         self.showMagnification = True
         self.showData = True
 
         self.scatter_points = None
-        self.scatter_source = None
+        # self.scatter_source = None
         self.lens_circle = None
-        order = np.arange(len(self.solver.source.points))
-        self.order = order
-        self.order2 = [val for pair in zip(order, order) for val in pair]
+        # order = np.arange(len(self.solver.source.points))
+        # self.order = order
+        # self.order2 = [val for pair in zip(order, order) for val in pair]
 
         self.initialize_plot()
 
         self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
-                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} arcsec' + '\n' +
+                     rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
 
         self.title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
-        self.ax.set_title(self.title)
+        self.ax.set_title(self.title, fontsize=12)
 
         bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
-        self.text_block = self.ax.text(0.73, 0.95, self.data, fontsize=9, bbox=bbox,
+        self.text_block = self.ax.text(0.625, 0.99, self.data, fontsize=9, bbox=bbox,
                                        color=g,
                                        horizontalalignment='left', verticalalignment='top',
                                        transform=self.ax.transAxes)
 
     def initialize_plot(self):
-        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=5, vmin=-3, vmax=3)
-        pp = self.solver.source.points.T
+        self.scatter_points = self.ax.scatter([], [], c=[], cmap='inferno', s=1, norm=colors.LogNorm(vmin=0.1, vmax=10))
+        # pp = self.solver.source.points.T
 
-        self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=5, alpha=0.01)
+        # self.scatter_source = self.ax.scatter(pp[0], pp[1] , c=self.order, cmap='viridis', s=5, alpha=0.01)
 
         self.lens_circle, = self.ax.plot([], [], color=g, linestyle=':')
-        self.scatter_source.set_zorder(1)
+        # self.scatter_source.set_zorder(1)
         self.scatter_points.set_zorder(2)
 
     def generate_filename(self):
@@ -96,19 +98,19 @@ class Renderer:
 
     def checkFlags(self, m):
         if self.showMagnification:
-            self.scatter_points.set_array(np.log(m))
+            self.scatter_points.set_array(m)
             self.scatter_points.set_cmap('inferno')
-            self.scatter_source.set_facecolor(g)  # Используется фиксированный цвет
-            self.scatter_points.set_clim(vmin=-3, vmax=3)
+            # self.scatter_source.set_facecolor(g)  # Используется фиксированный цвет
+            # self.scatter_points.set_clim(vmin=-3, vmax=3)
 
         else:
-            self.scatter_points.set_array(self.order2)
+            # self.scatter_points.set_array(self.order2)
             self.scatter_points.set_cmap('viridis')
-            self.scatter_source.set_array(self.order)
-            self.scatter_source.set_cmap('viridis')
-            self.scatter_points.set_clim(vmin=self.order[0], vmax=self.order[-1])
+            # self.scatter_source.set_array(self.order)
+            # self.scatter_source.set_cmap('viridis')
+            # self.scatter_points.set_clim(vmin=self.order[0], vmax=self.order[-1])
 
-        self.scatter_source.set_visible(self.showSource)
+        # self.scatter_source.set_visible(self.showSource)
         self.text_block.set_visible(self.showData)
 
     def updateData(self):
@@ -117,8 +119,8 @@ class Renderer:
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
-        pp = self.solver.source.points
-        self.scatter_source.set_offsets(pp)
+        # pp = self.solver.source.points
+        # self.scatter_source.set_offsets(pp)
 
     def show(self):
         p, m = self.solver.processImage()
@@ -134,17 +136,18 @@ class Renderer:
         y = e_an * np.sin(theta) + ll[1]
         self.lens_circle.set_data(x, y)
 
-        self.text_block.set_text(self.data)
+        self.text_block.set_text(self.data)#+ f'\ncount: {len(m) / 2}')
 
-        limx = np.array(lim[0]) * 1e-3 if lim else np.array([-e_an, e_an]) * 3
-        limy = np.array(lim[1]) * 1e-3 if lim else np.array([4 * e_an, -2 * e_an]) * np.sign(
-            self.solver.getSourceDirection())
-        self.ax.set_xlim(self.solver.getSourceCenter()[0] + limx)
-        self.ax.set_ylim(self.solver.getSourceCenter()[1] + limy)
-        self.ax.set_facecolor([0.05, 0.05, 0.1])
+        # limx = np.array(lim[0]) if lim else np.array([-e_an, e_an]) * 3
+        # limy = np.array(lim[1]) if lim else np.array([4 * e_an, -2 * e_an]) * np.sign(
+        #     self.solver.getSourceDirection())
+
+        # self.ax.set_facecolor([0.05, 0.05, 0.1])
+        self.ax.set_facecolor(g / 10)
         plt.grid(linestyle='--', color=g / 2)
         plt.tick_params(axis='x', colors=g)
         plt.tick_params(axis='y', colors=g)
+
         plt.draw()
 
         return self.scatter_points
@@ -156,7 +159,7 @@ class Renderer:
 
         cbar = plt.colorbar(self.show(), ax=self.ax)
 
-        cbar.set_label('ln(magnification)', color=g)
+        cbar.set_label('magnification', color=g)
 
         cbar.ax.tick_params(labelcolor=g)
         plt.show()
