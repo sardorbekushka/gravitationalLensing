@@ -31,10 +31,17 @@ lim = [[-2, 2], [-5, 2]] # [по горизонтали, по вертикали
 #
 sec2deg = 1 / 3600
 deg2rad = np.pi / 180
-
+asec = 0.000012120342027738
 figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 7 * 1.24, 7) if lim else (5, 7)
 plt.figure(figsize=figsize, facecolor='black')
 arcsec = 180 * 3600 / np.pi
 rad = np.pi / 180
 L = 2e-2 # kpc
 plt.style.use('dark_background')
+
+
+def readData(filename='src/data_15kHz.txt'):
+    with open(filename) as f:
+        lines = f.readlines()
+
+    return np.transpose([list(map(float, line.split())) for line in lines])

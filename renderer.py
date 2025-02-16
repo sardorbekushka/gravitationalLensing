@@ -3,7 +3,6 @@ from matplotlib.backend_bases import MouseButton
 import numpy as np
 from settings import *
 
-
 class Renderer:
     def __init__(self, solver, ax) -> None:
         self.solver = solver
@@ -15,6 +14,7 @@ class Renderer:
         # self.ax.set_xlim([-0.25, 0.25])
         # self.ax.set_ylim([-4.2, -3.2])
         self.showSource = True
+        self.showImage = False
         self.showMagnification = True
         self.showData = True
 
@@ -22,6 +22,9 @@ class Renderer:
         self.scatter_source = None
         self.lens_circle = None
         self.order = None
+        self.real_image = None
+        self.real_data = None
+
         # self.order2 = [val for pair in zip(order, order) for val in pair]
         self.cbar = None
 
@@ -30,7 +33,7 @@ class Renderer:
         self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
                      rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
-                     r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
+                     r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
 
         self.title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
@@ -47,7 +50,7 @@ class Renderer:
         self.order = order
 
     def initialize_plot(self):
-        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=10))
+        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=100))
         self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
         self.cbar.set_label('magnification')
         self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.01)
@@ -55,6 +58,15 @@ class Renderer:
         self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
         self.scatter_source.set_zorder(1)
         self.scatter_image.set_zorder(2)
+        # self.real_image = self.ax.imshow(plt.imread('src/image.png'),
+        #                                  extent=(-2, 2, -7, 2), alpha=0.3)
+
+        # self.real_image = self.ax.imshow(plt.imread('src/image2.png'),
+        #                                  extent=(-1, 1, -4.5, 1), alpha=0.3)
+        data = readData()
+        # self.real_data = self.ax.scatter(data[1], data[3], c='c', s=0.5)
+        self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.1, markersize=0.5)
+        # self.real_data = self.ax.scatter(data[1], data[3], c=data[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1))
 
 
     def generate_filename(self):
@@ -62,7 +74,7 @@ class Renderer:
         m = s.getLensMass()
         pos = s.getLensCenter()
         a = s.getSourceDirection()
-        return f'movingJet/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_y0{"{:.2e}".format(s.source.y0)}_S{int(self.showSource)}.png'
+        return f'interesting/test/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_y1{"{:.2e}".format(s.source.y1)}_S{int(self.showSource)}.png'
 
     def handleKeyEvent(self, event):
         shift = [0.0, 0]
@@ -71,32 +83,44 @@ class Renderer:
             shift = [shift_size, 0]
         elif event.key == 'left':
             shift = [-shift_size, 0]
-        if event.key == 'up':
+        elif event.key == 'up':
             shift = [0, shift_size]
         elif event.key == 'down':
             shift = [0, -shift_size]
+
         self.solver.moveLens(shift)
+
         if event.key in ['m', 'ь']:
             self.showMagnification = not self.showMagnification
-        if event.key == 'enter':
+        elif event.key == 'enter':
             plt.savefig(self.generate_filename(), dpi=150)
-        if event.key == '=':
+        elif event.key == '=':
             self.solver.increaseMass()
         elif event.key == '-':
             self.solver.decreaseMass()
 
-        if event.key in ['h', 'р']:
+        elif event.key in ['h', 'р']:
             self.showSource = not self.showSource
-        if event.key in ['d', 'в']:
+        elif event.key in ['d', 'в']:
             self.showData = not self.showData
 
-        if event.key in ['w', 'z', 'ц', 'я']:
+        elif event.key in ['w', 'z', 'ц', 'я']:
             direction = 1 if event.key in ['w', 'ц'] else -1
             self.solver.declineSource(direction)
 
-        if event.key in ['W', 'Z', 'Ц', 'Я']:
+        elif event.key in ['W', 'Z', 'Ц', 'Я']:
             k = 1 if event.key in ['Z', 'Я'] else -1
             self.solver.moveDls(k)
+
+        elif event.key in ['i', 'ш']:
+            self.showImage = not self.showImage
+
+        elif event.key in ['u', 'г', 'U', 'Г']:
+            k = 1 if event.key in ['u', 'г'] else -1
+            self.solver.increaseWidth(k)
+
+        elif event.key == 'r':
+            print(self.solver.getEfficiency())
 
         self.updateData()
         self.show()
@@ -113,7 +137,7 @@ class Renderer:
         if self.showMagnification:
             self.scatter_image.set_array(m)
             self.scatter_image.set_cmap('inferno')
-            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1, vmax=10))
+            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1, vmax=100))
             self.scatter_source.set_array([10])
             self.scatter_source.set_norm(colors.Normalize(vmin=1, vmax=2))
             self.cbar.set_label('magnification', color=g)
@@ -127,6 +151,16 @@ class Renderer:
             self.scatter_source.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
             self.cbar.set_label('point order', color=g)
 
+        # self.real_image.set_visible(self.showImage)
+        # for line in self.real_data.lines:
+        #     line.set_visible(self.showImage)
+        for item in self.real_data.lines:
+            if hasattr(item, 'set_visible'):
+                item.set_visible(self.showImage)
+            elif isinstance(item, tuple):  # Если внутри есть вложенные элементы
+                for sub_item in item:
+                    if hasattr(sub_item, 'set_visible'):
+                        sub_item.set_visible(self.showImage)
 
         self.scatter_source.set_visible(self.showSource)
         self.text_block.set_visible(self.showData)
@@ -135,7 +169,7 @@ class Renderer:
         self.data = (rf'mass: {"{:.3e}".format(self.solver.getLensMass())} kg' + '\n' +
                      rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
-                     r'$D_{ls}:$' + f'{self.solver.lens.D_ls} kpc \n' +
+                     r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
 
     def show(self):

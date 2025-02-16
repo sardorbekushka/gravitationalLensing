@@ -1,11 +1,9 @@
 import numpy as np
 
-import solver
 from settings import *
 
-
 class Lens:
-    def __init__(self, mass, D_ls, center) -> None:
+    def __init__(self, mass=1e40, D_ls=7, center=np.array([0.0, 0.0])) -> None:
         '''
         :param mass: the mass of the Lens (in kg)
         :param D_ls: distance between Lens and Source (in kpc)
@@ -15,9 +13,11 @@ class Lens:
         self.m = mass
         self.center = np.array(center, dtype=float)
 
+    def getSchwarzschildRadius(self):
+        return 2 * constants.G.value * self.m / constants.c.value ** 2
 
 class Source:
-    def __init__(self, z=0.3365, source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7) -> None:
+    def __init__(self, z=0.3365, source_type='line', x0=0, x1=0, y0=0, y1=-4, d0=0, d1=7, width=0) -> None:
         '''
         :param z: redshift of Source
         :param center: center of the Source in angle plane (in arcseconds)
@@ -36,10 +36,13 @@ class Source:
         self.y1 = y1
         self.d0 = d0
         self.d1 = d1
+        self.width = width
 
-        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1) if source_type == 'line' else None
+        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1, width) if source_type == 'line' else (
+                                         self.createCircleSource(x0, x1, y0, y1, d0, d1) if source_type == 'circle' else
+                                         self.createParabolicSource(x0, x1, y0, y1, d0, d1) if source_type == 'parabolic' else None)
 
-    def createLineSource(self, x0, x1, y0, y1, d0, d1):
+    def createLineSource(self, x0, x1, y0, y1, d0, d1, width):
         '''
         creates the Source in shape of line .
 
@@ -53,21 +56,41 @@ class Source:
         :return: an array of Source points
         '''
 
-        x = lambda y: (y - y0) / (y1 - y0) * (x1 - x0) + x0
-        d = lambda y: (y - y0) / (y1 - y0) * (d1 - d0) + d0
-        angle = np.arctan(np.sqrt((y1 - y0) ** 2 + (x1 - x0) ** 2) * sec2deg / deg2rad / 1000 * self.D_s / (d1 - d0))
+        x = lambda y: (y - y0) / (y1 - y0) * (x1 - x0) + x0 + width * ((int(10000 * y) % 15) - 7) / 500
+        # d = lambda y: (y - y0) / (y1 - y0) * (d1 - d0) + d0
+        d = lambda y: ((self.D_s * (y - y0) * (d1 - d0) + d0 * (y1 * (self.D_s - d1) - y0 * self.D_s)) /
+                       (y * (d1 - d0) + y1 * (self.D_s - d1) - y0 * self.D_s))
+        angle = np.arctan(np.sqrt((y1 - y0) ** 2 + (x1 - x0) ** 2) * sec2deg * deg2rad / 1000 * self.D_s / (d1 - d0))
 
         return x, d, np.rad2deg(angle)
 
-    def updateLineSource(self, x0, x1, y0, y1, d0, d1):
+    def createParabolicSource(self, x0, x1, y0, y1, d0, d1):
+        x = lambda y: (y - y0) * (y - y1) * x1 * (2 / (y1 - y0)) ** 2 + x0
+        d = lambda y: ((self.D_s * (y - y0) * (d1 - d0) + d0 * (y1 * (self.D_s - d1) - y0 * self.D_s)) /
+                       (y * (d1 - d0) + y1 * (self.D_s - d1) - y0 * self.D_s))
+
+        angle = np.arctan(np.sqrt((y1 - y0) ** 2 + (x1 - x0) ** 2) * sec2deg * deg2rad / 1000 * self.D_s / (d1 - d0))
+
+        return x, d, np.rad2deg(angle)
+
+    def createCircleSource(self, x0, x1, y0, y1, d0, d1):
+        x = lambda y: (x1 - x0) * np.sqrt(1 - (y - (y1 + y0) / 2) ** 2 / ((y1 - y0) / 2) ** 2) + x0
+        d = lambda y: ((self.D_s * (y - y0) * (d1 - d0) + d0 * (y1 * (self.D_s - d1) - y0 * self.D_s)) /
+                       (y * (d1 - d0) + y1 * (self.D_s - d1) - y0 * self.D_s))
+        angle = np.arctan((y1 - y0) * sec2deg * deg2rad / 1000 * self.D_s / (d1 - d0))
+
+        return x, d, np.rad2deg(angle)
+
+    def updateLineSource(self, x0, x1, y0, y1, d0, d1, width):
         self.x0 = x0
         self.x1 = x1
         self.y0 = y0
         self.y1 = y1
         self.d0 = d0
         self.d1 = d1
+        self.width = width
 
-        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1)
+        self.x, self.d, self.direction = self.createLineSource(x0, x1, y0, y1, d0, d1, width)
 
         return self.direction
 
@@ -75,7 +98,7 @@ class Source:
         self.points = np.array(p)
 
 class Solver:
-    def __init__(self, lens: Lens, source: Source) -> None:
+    def __init__(self, lens: Lens, source: Source, filename='src/data_15kHz.txt') -> None:
         """
         :param lens: an object of the Lens class. the lens of the system
         :param source: an object of the Source class. the source of the system
@@ -86,8 +109,28 @@ class Solver:
         self.stepPos = 5e-3
         self.stepLength = 1
         self.D_l = self.source.D_s - self.lens.D_ls
-        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
+        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
         self.points = []
+        self.image_points = np.array([])
+
+        self.real_data = readData(filename)
+        self.countMatch = None
+        self.createMatch()
+
+    def createMatch(self):
+        t, x, dx, y, dy, l, dl = self.real_data
+        x1 = (x - dx)[:, None]
+        x2 = (x + dx)[:, None]
+        y1 = (y - dy)[:, None]
+        y2 = (y + dy)[:, None]
+        xy = np.array([x, y]).transpose()
+        ### поиск по точкам модели
+        # self.countMatch = lambda p: np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=0).sum()
+        # self.countMatch = lambda p: self.image_points.transpose()[np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=0)]
+
+        ### поиск по реальным точкам
+        self.countMatch = lambda p: np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=1).sum()
+        # self.countMatch = lambda p: xy[np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=1)]
 
     def einsteinRadius(self, D_s):
         """
@@ -97,7 +140,7 @@ class Solver:
         """
         D_ls = D_s - self.D_l
 
-        return 0 if D_ls < 0 else np.sqrt(self.k * D_ls / self.D_l * self.source.D_s / D_s)
+        return 0 if D_ls < 0 else np.sqrt(self.k * D_ls / D_s)
 
     def einsteinRadiusZ(self, z):
         """
@@ -118,7 +161,6 @@ class Solver:
 
         beta = np.linalg.norm(dp)
         beta2 = beta ** 2
-        # ea2 = self.k * (self.lens.D_ls - d) / (self.source.D_s - d)
         ea2 = self.einsteinRadius(self.source.D_s - d) ** 2
 
         theta1 = (beta + np.sqrt(beta2 + 4 * ea2)) / 2
@@ -151,7 +193,7 @@ class Solver:
         i = 0
 
         dmin = 5e-3
-        dmax = 1e-3
+        dmax = 1e-2
         # dmin = 1e-3
         # dmax = 1e-2
 
@@ -175,8 +217,16 @@ class Solver:
         im = np.transpose(im)
         magn = np.concatenate([magn1, magn2])
         self.source.setPoints(self.points)
+        self.image_points = np.array(im)
+
         # print(len(image1))
         return im, magn
+
+    def getEfficiency(self):
+        return self.countMatch(self.image_points) / len(self.real_data[0])
+
+    def increaseWidth(self, k):
+        self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, self.source.d1, self.source.width + 0.5 * k)
 
     def moveLens(self, shift):
         self.lens.center += np.array(shift) * self.stepPos
@@ -204,7 +254,7 @@ class Solver:
         self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
     def setLength(self, d1):
-        self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, d1)
+        self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, d1, self.source.width)
 
     def declineSource(self, k):
         self.setLength(self.source.d1 + k * self.stepLength)
@@ -222,7 +272,7 @@ class Solver:
         return self.source.D_s
 
     def getLensDistance(self):
-        return self.source.D_s - self.lens.D_ls
+        return self.D_l
 
     def getSourceDirection(self):
         return self.source.direction
@@ -232,4 +282,5 @@ class Solver:
 
     def getSourcePoints(self):
         return np.array(self.points)
+
 
