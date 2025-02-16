@@ -58,16 +58,10 @@ class Renderer:
         self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
         self.scatter_source.set_zorder(1)
         self.scatter_image.set_zorder(2)
-        # self.real_image = self.ax.imshow(plt.imread('src/image.png'),
-        #                                  extent=(-2, 2, -7, 2), alpha=0.3)
 
-        # self.real_image = self.ax.imshow(plt.imread('src/image2.png'),
-        #                                  extent=(-1, 1, -4.5, 1), alpha=0.3)
         data = readData()
-        # self.real_data = self.ax.scatter(data[1], data[3], c='c', s=0.5)
         self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.1, markersize=0.5)
         # self.real_data = self.ax.scatter(data[1], data[3], c=data[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1))
-
 
     def generate_filename(self):
         s = self.solver
@@ -77,50 +71,63 @@ class Renderer:
         return f'interesting/test/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_y1{"{:.2e}".format(s.source.y1)}_S{int(self.showSource)}.png'
 
     def handleKeyEvent(self, event):
-        shift = [0.0, 0]
         shift_size = 0.5
-        if event.key == 'right':
-            shift = [shift_size, 0]
-        elif event.key == 'left':
-            shift = [-shift_size, 0]
-        elif event.key == 'up':
-            shift = [0, shift_size]
-        elif event.key == 'down':
-            shift = [0, -shift_size]
+        shift_map = {
+            'right': [shift_size, 0],
+            'left': [-shift_size, 0],
+            'up': [0, shift_size],
+            'down': [0, -shift_size]
+        }
 
-        self.solver.moveLens(shift)
+        shift = shift_map.get(event.key, [0.0, 0])
 
-        if event.key in ['m', 'ь']:
-            self.showMagnification = not self.showMagnification
-        elif event.key == 'enter':
-            plt.savefig(self.generate_filename(), dpi=150)
-        elif event.key == '=':
-            self.solver.increaseMass()
-        elif event.key == '-':
-            self.solver.decreaseMass()
+        if event.key in shift_map:
+            self.solver.moveLens(shift)
 
-        elif event.key in ['h', 'р']:
-            self.showSource = not self.showSource
-        elif event.key in ['d', 'в']:
-            self.showData = not self.showData
+        toggle_map = {
+            'm': 'showMagnification', 'ь': 'showMagnification',
+            'h': 'showSource', 'р': 'showSource',
+            'd': 'showData', 'в': 'showData',
+            'i': 'showImage', 'ш': 'showImage'
+        }
 
-        elif event.key in ['w', 'z', 'ц', 'я']:
-            direction = 1 if event.key in ['w', 'ц'] else -1
+        if event.key in toggle_map:
+            setattr(self, toggle_map[event.key], not getattr(self, toggle_map[event.key]))
+
+        action_map = {
+            'enter': lambda: plt.savefig(self.generate_filename(), dpi=150),
+            '+': lambda: self.solver.changeMass(1),
+            '_': lambda: self.solver.changeMass(-1),
+            'e': lambda: print(self.solver.getEfficiency()),
+            'E': lambda: print(self.solver.getEfficiency())
+        }
+
+        if event.key in action_map:
+            action_map[event.key]()
+
+        decline_map = {
+            'w': 1, 'z': -1, 'ц': 1, 'я': -1
+        }
+
+        if event.key in decline_map:
+            direction = decline_map[event.key]
             self.solver.declineSource(direction)
 
-        elif event.key in ['W', 'Z', 'Ц', 'Я']:
-            k = 1 if event.key in ['Z', 'Я'] else -1
-            self.solver.moveDls(k)
+        move_lens_map = {
+            'W': -1, 'Z': 1, 'Ц': -1, 'Я': 1
+        }
 
-        elif event.key in ['i', 'ш']:
-            self.showImage = not self.showImage
+        if event.key in move_lens_map:
+            shift = move_lens_map[event.key]
+            self.solver.moveDls(shift)
 
-        elif event.key in ['u', 'г', 'U', 'Г']:
-            k = 1 if event.key in ['u', 'г'] else -1
-            self.solver.increaseWidth(k)
+        width_change_map = {
+            'u': 1, 'г': 1, 'U': -1, 'Г': -1
+        }
 
-        elif event.key == 'r':
-            print(self.solver.getEfficiency())
+        if event.key in width_change_map:
+            k = width_change_map[event.key]
+            self.solver.changeWidth(k)
 
         self.updateData()
         self.show()

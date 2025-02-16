@@ -225,7 +225,7 @@ class Solver:
     def getEfficiency(self):
         return self.countMatch(self.image_points) / len(self.real_data[0])
 
-    def increaseWidth(self, k):
+    def changeWidth(self, k):
         self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, self.source.d1, self.source.width + 0.5 * k)
 
     def moveLens(self, shift):
@@ -241,8 +241,8 @@ class Solver:
     def moveDls(self, k):
         self.setDls(self.lens.D_ls + k * self.stepLength)
 
-    def increaseMass(self):
-        self.lens.m *= self.stepMass
+    def changeMass(self, k):
+        self.lens.m *= self.stepMass ** k
         self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
     def decreaseMass(self):
