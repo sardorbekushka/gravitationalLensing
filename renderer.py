@@ -1,14 +1,18 @@
 import matplotlib.pyplot as plt
 from matplotlib.backend_bases import MouseButton
 import numpy as np
+from solver import*
+# from reverseSolver import source
 from settings import *
 
 class Renderer:
     def __init__(self, solver, ax) -> None:
         self.solver = solver
         self.ax = ax
-        self.ax.set_xlim([-2, 2])
-        self.ax.set_ylim([-5, 2])
+        # self.ax.set_xlim([-2, 2])
+        # self.ax.set_ylim([-5, 2])
+        self.ax.set_xlim(lim[0])
+        self.ax.set_ylim(lim[1])
         self.ax.set_xlabel('mas')
         self.ax.set_ylabel('mas')
         # self.ax.set_xlim([-0.25, 0.25])
@@ -21,6 +25,7 @@ class Renderer:
         self.scatter_image = None
         self.scatter_source = None
         self.lens_circle = None
+        self.lens_pos = None
         self.order = None
         self.real_image = None
         self.real_data = None
@@ -40,7 +45,7 @@ class Renderer:
         self.ax.set_title(self.title, fontsize=12)
 
         bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
-        self.text_block = self.ax.text(0.625, 0.99, self.data, fontsize=9, bbox=bbox,
+        self.text_block = self.ax.text(0.53, 0.99, self.data, fontsize=12, bbox=bbox,
                                        color=g,
                                        horizontalalignment='left', verticalalignment='top',
                                        transform=self.ax.transAxes)
@@ -50,25 +55,35 @@ class Renderer:
         self.order = order
 
     def initialize_plot(self):
-        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.1, vmax=100))
+        self.lens_pos = self.ax.scatter([], [], marker='x', c='r')
+
+        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1, vmax=100))
         self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
         self.cbar.set_label('magnification')
-        self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.01)
+
+        self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.2)
 
         self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
+
+
         self.scatter_source.set_zorder(1)
         self.scatter_image.set_zorder(2)
 
-        data = readData()
+        # data_old15kHz.txt = readData()
+        data = self.solver.real_data
         self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.1, markersize=0.5)
-        # self.real_data = self.ax.scatter(data[1], data[3], c=data[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1))
+        # self.real_data = self.ax.scatter(data_old15kHz.txt[1], data_old15kHz.txt[3], c=data_old15kHz.txt[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1.6))
 
     def generate_filename(self):
         s = self.solver
         m = s.getLensMass()
         pos = s.getLensCenter()
         a = s.getSourceDirection()
-        return f'interesting/test/M{"{:.4e}".format(m)}_X{"{:.1e}".format(pos[1])}Y{"{:.1e}".format(pos[0])}_A{"{:.3g}".format(a)}_y1{"{:.2e}".format(s.source.y1)}_S{int(self.showSource)}.png'
+        return f'top10/M{"{:.4e}".format(m)}_X{"{:.4e}".format(pos[0])}Y{"{:.4e}".format(pos[1])}_A{"{:.4g}".format(a)}_D1_{"{:.2g}".format(s.source.d1)}_X1_{"{:.4g}".format(s.source.x1)}.png'
+
+    def generate_filename_(self):
+        e = self.solver.getEfficiency()
+        return self.generate_filename()[:-4] + f'_{"{:.4g}".format(e[0])}_{"{:.4g}".format(e[1])}' + '.png'
 
     def handleKeyEvent(self, event):
         shift_size = 0.5
@@ -95,7 +110,7 @@ class Renderer:
             setattr(self, toggle_map[event.key], not getattr(self, toggle_map[event.key]))
 
         action_map = {
-            'enter': lambda: plt.savefig(self.generate_filename(), dpi=150),
+            'enter': lambda: plt.savefig(self.generate_filename_(), dpi=150),
             '+': lambda: self.solver.changeMass(1),
             '_': lambda: self.solver.changeMass(-1),
             'e': lambda: print(self.solver.getEfficiency()),
@@ -158,13 +173,10 @@ class Renderer:
             self.scatter_source.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
             self.cbar.set_label('point order', color=g)
 
-        # self.real_image.set_visible(self.showImage)
-        # for line in self.real_data.lines:
-        #     line.set_visible(self.showImage)
         for item in self.real_data.lines:
             if hasattr(item, 'set_visible'):
                 item.set_visible(self.showImage)
-            elif isinstance(item, tuple):  # Если внутри есть вложенные элементы
+            elif isinstance(item, tuple):
                 for sub_item in item:
                     if hasattr(sub_item, 'set_visible'):
                         sub_item.set_visible(self.showImage)
@@ -193,19 +205,21 @@ class Renderer:
         x = e_an * np.cos(theta) + ll[0]
         y = e_an * np.sin(theta) + ll[1]
         self.lens_circle.set_data(x, y)
+        self.lens_pos.set_offsets(ll)
 
         self.text_block.set_text(self.data)
 
-        self.ax.set_facecolor(g / 10)
-        plt.grid(linestyle=':', color=g / 2)
-        plt.tick_params(axis='x', colors=g)
-        plt.tick_params(axis='y', colors=g)
 
         plt.draw()
 
         return self.scatter_image
 
     def start(self):
+
+        self.ax.set_facecolor(g / 10)
+        plt.grid(linestyle=':', color=g / 2)
+        plt.tick_params(axis='x', colors=g)
+        plt.tick_params(axis='y', colors=g)
         key_id = plt.connect('key_press_event', self.handleKeyEvent)
         mouseMove_id = plt.connect('motion_notify_event', self.handleMouseEvent)
         mouseClick_id = plt.connect('button_press_event', self.handleMouseEvent)

@@ -21,6 +21,7 @@ rc('text.latex', preamble=r'\usepackage[russian]{babel}')
 rc('axes', edgecolor=g)
 
 lim = [[-2, 2], [-5, 2]] # [по горизонтали, по вертикали]. или None чтобы ограничение шло по углу Эйнштейна
+# lim = [[-1, 1], [-2.5, 1]] # [по горизонтали, по вертикали]. или None чтобы ограничение шло по углу Эйнштейна
 
 # if lim
 # if lim:
@@ -38,10 +39,18 @@ arcsec = 180 * 3600 / np.pi
 rad = np.pi / 180
 L = 2e-2 # kpc
 plt.style.use('dark_background')
+# plt.rcParams.update({'font.size': 14})
 
 
-def readData(filename='src/data_15kHz.txt'):
-    with open(filename) as f:
-        lines = f.readlines()
 
-    return np.transpose([list(map(float, line.split())) for line in lines])
+G = constants.G.value
+c2 = constants.c.value ** 2
+CONVERSION_FACTOR = 3.086e19 * (deg2rad * sec2deg / 1e3) ** 2
+
+
+# data_old15kHz.txt = readData()
+# mask = data_old15kHz.txt[3] < -3
+# # print(data_old15kHz.txt[3] < -3)
+# print(data_old15kHz.txt.T[mask])
+
+## в среднем в районе y = -4 потол flux=0.044

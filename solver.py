@@ -1,6 +1,5 @@
-import numpy as np
-
 from settings import *
+from utils import *
 
 class Lens:
     def __init__(self, mass=1e40, D_ls=7, center=np.array([0.0, 0.0])) -> None:
@@ -27,7 +26,7 @@ class Source:
 
         self.z = z
         self.D_s = model.angular_diameter_distance(self.z).to('kpc').value
-
+        # print(self.D_s)
         self.points = np.array([[0, 0]])
 
         self.x0 = x0
@@ -56,7 +55,7 @@ class Source:
         :return: an array of Source points
         '''
 
-        x = lambda y: (y - y0) / (y1 - y0) * (x1 - x0) + x0 + width * ((int(10000 * y) % 15) - 7) / 500
+        x = lambda y: (y - y0) / (y1 - y0) * (x1 - x0) + x0 #+ 10*width * ((int(10000 * y) % (-int(10 * y) + 2)) -  (-int(10 * y) + 2) / 2) / 500
         # d = lambda y: (y - y0) / (y1 - y0) * (d1 - d0) + d0
         d = lambda y: ((self.D_s * (y - y0) * (d1 - d0) + d0 * (y1 * (self.D_s - d1) - y0 * self.D_s)) /
                        (y * (d1 - d0) + y1 * (self.D_s - d1) - y0 * self.D_s))
@@ -106,16 +105,28 @@ class Solver:
         self.lens = lens
         self.source = source
         self.stepMass = 1.2
-        self.stepPos = 5e-3
+        self.stepPos = 1e-3
         self.stepLength = 1
         self.D_l = self.source.D_s - self.lens.D_ls
         self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
         self.points = []
         self.image_points = np.array([])
 
-        self.real_data = readData(filename)
+        self.real_data = np.concatenate([readData(filename), readData('src/data_old15kHz.txt')], axis=1)
+        # self.real_data = readData(filename)
+        # self.real_data = self.real_data.T[self.real_data[0] == 2019.59].T
+        self.real_data = self.real_data.T[self.real_data[3] > -3].T
+        # print(min(self.real_data[2][self.real_data[2]>0]))
+        # print(self.real_data.T)
+        # print(min(self.real_data[4]))
+        # self.real_data1 = (self.real_data.T[(self.real_data[3] < -1) & (self.real_data[3] > -3)]).T
+        self.real_data1 = self.real_data.T[self.real_data[3] < -1].T
         self.countMatch = None
+        self.countMatch1 = None
+        self.dev = None
         self.createMatch()
+        self.createMatch1()
+        self.createDev()
 
     def createMatch(self):
         t, x, dx, y, dy, l, dl = self.real_data
@@ -132,6 +143,28 @@ class Solver:
         self.countMatch = lambda p: np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=1).sum()
         # self.countMatch = lambda p: xy[np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=1)]
 
+    def createDev(self):
+        t, x, dx, y, dy, l, dl = self.real_data
+        p = np.vstack([x, y]).T
+        dp = np.vstack([dx, dy]).T
+
+        self.dev = lambda pp: dev(pp, p, dp)
+
+    def createMatch1(self):
+        t, x, dx, y, dy, l, dl = self.real_data1
+        x1 = (x - dx)[:, None]
+        x2 = (x + dx)[:, None]
+        y1 = (y - dy)[:, None]
+        y2 = (y + dy)[:, None]
+        xy = np.array([x, y]).transpose()
+        ### поиск по точкам модели
+        # self.countMatch = lambda p: np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=0).sum()
+        # self.countMatch = lambda p: self.image_points.transpose()[np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)), axis=0)]
+
+        ### поиск по реальным точкам
+        self.countMatch1 = lambda p: np.any(((x1 <= p[0]) & (p[0] <= x2) & (y1 <= p[1]) & (p[1] <= y2)),
+                                           axis=1).sum()
+
     def einsteinRadius(self, D_s):
         """
         the Einstein radius for point with angular diameter distance D_s.
@@ -141,6 +174,7 @@ class Solver:
         D_ls = D_s - self.D_l
 
         return 0 if D_ls < 0 else np.sqrt(self.k * D_ls / D_s)
+        # return np.sqrt(self.k * D_ls / D_s)
 
     def einsteinRadiusZ(self, z):
         """
@@ -178,7 +212,6 @@ class Solver:
         self.points = []
 
         y = self.source.y0
-        dy = dy_max
 
         image1 = []
         magn1 = []
@@ -191,11 +224,13 @@ class Solver:
         magn1.append(m1)
         magn2.append(m2)
         i = 0
+        dy = dy_min
 
-        dmin = 5e-3
-        dmax = 1e-2
-        # dmin = 1e-3
+
+        # dmin = 5e-3
         # dmax = 1e-2
+        dmin = 1e-4
+        dmax = 5e-4
 
         while y > self.source.y1:
             i += 1
@@ -207,11 +242,11 @@ class Solver:
             magn2.append(m2)
 
             if np.linalg.norm(im1 - image1[i - 1]) > dmax or np.linalg.norm(im2 - image2[i - 1]) > dmax:
-                if dy > dy_min:
-                    dy /= 2
+                # if dy > dy_min:
+                dy /= 2
             elif np.linalg.norm(im1 - image1[i - 1]) < dmin or np.linalg.norm(im2 - image2[i - 1]) < dmin:
-                if dy < dy_max:
-                    dy *= 2
+                # if dy < dy_max:
+                dy *= 2
 
         im = np.concatenate([image1, image2])
         im = np.transpose(im)
@@ -219,11 +254,57 @@ class Solver:
         self.source.setPoints(self.points)
         self.image_points = np.array(im)
 
-        # print(len(image1))
         return im, magn
 
+    def processImage_(self, n=10000):
+        y = np.linspace(self.source.y0, min(1.0,  self.lens.D_ls / (self.source.d1 - self.source.d0)) * (self.source.y1 - self.source.y0) + self.source.y0 + 1e-3, n)
+        # print(y)
+        # x = self.source.x(y)
+        # d = self.source.d(y)
+        # p = np.array([x, y])
+        # dp = p - self.lens.center
+        #
+        # beta = np.linalg.norm(dp)
+        # beta2 = beta ** 2
+        # ea2 = self.einsteinRadius(self.source.D_s - d) ** 2
+        #
+        # theta1 = (beta + np.sqrt(beta2 + 4 * ea2)) / 2
+        # theta2 = (beta - np.sqrt(beta2 + 4 * ea2)) / 2
+        #
+        # im1_ = theta1 / beta * dp + self.lens.center
+        # im2_ = theta2 / beta * dp + self.lens.center
+        #
+        # m1_ = 1 / (1 - (ea2 / theta1 ** 2) ** 2)
+        # m2_ = -1 / (1 - (ea2 / theta2 ** 2) ** 2)
+        x = self.source.x(y)
+        d = self.source.d(y)
+        self.points = np.column_stack((x, y))
+        dp = self.points - self.lens.center
+        beta = np.linalg.norm(dp, axis=1)
+        ea = self.einsteinRadius(self.source.D_s - d)
+        # ea[ea < 0] = 0
+        theta = (beta[:, None] + np.sqrt(beta ** 2 + 4 * ea ** 2)[:, None] * [1, -1]) / 2
+        images = (theta[..., None] / beta[:, None, None] * dp[:, None, :] +
+                  self.lens.center).reshape(-1, 2)
+        magnifications = np.reshape(np.abs(1 / (1 - ((ea[:, None] / theta) ** 2) ** 2)), (1, -1))[0]
+        self.source.setPoints(self.points)
+        self.image_points = np.array(images).T
+
+        # print(self.image_points)
+        # print(magnifications)
+        return self.image_points, magnifications
+
+        # self.points =
+
+    def updateSource(self, x1, d1):
+
+        self.source.updateLineSource(self.source.x0, x1, self.source.y0, self.source.y1, self.source.d0, d1, self.source.width)
+
+    def getEfficiency_(self):
+        return self.countMatch(self.image_points) / len(self.real_data[0]), self.countMatch1(self.image_points) / len(self.real_data1[0])
+
     def getEfficiency(self):
-        return self.countMatch(self.image_points) / len(self.real_data[0])
+        return self.dev(self.image_points.T)
 
     def changeWidth(self, k):
         self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, self.source.d1, self.source.width + 0.5 * k)
@@ -232,7 +313,7 @@ class Solver:
         self.lens.center += np.array(shift) * self.stepPos
 
     def setLens(self, pos):
-        self.lens.center = pos
+        self.lens.center = np.array(pos)
 
     def setDls(self, Dls):
         self.lens.D_ls = Dls
