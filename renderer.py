@@ -4,6 +4,7 @@ import numpy as np
 from solver import*
 # from reverseSolver import source
 from settings import *
+from scipy.ndimage import gaussian_filter
 
 class Renderer:
     def __init__(self, solver, ax) -> None:
@@ -195,7 +196,7 @@ class Renderer:
                      r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 5)}$^\circ$')
 
-    def show(self):
+    def show_(self):
         p, m = self.solver.processImage()
         m *= flux
         ll = self.solver.getLensCenter()
@@ -218,6 +219,39 @@ class Renderer:
         plt.draw()
 
         return self.scatter_image
+
+    def show(self):
+        self.ax.clear()
+        p, m = self.solver.processImage()
+        m *= flux
+
+        N = 400
+        M = 700
+        sx = 0.48
+        sy = 1.06
+
+        image = np.zeros((M, N), dtype=np.float64)
+        xx = np.round((p[0] + 2) / 4 * N).astype(int)
+        yy = np.round((p[1] + 5) / 7 * M).astype(int)
+
+
+        image[yy, xx] = m
+        image = np.nan_to_num(image)
+
+        sigma_x = sx / 4 * N  # Параметр размытия (чем больше, тем сильнее размытие)
+        sigma_y = sy / 7 * M  # Параметр размытия (чем больше, тем сильнее размытие)
+        sigma = np.array([sigma_y, sigma_x]) / 2
+
+        blurred_image = gaussian_filter(image, sigma=sigma)
+
+        self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower')
+
+        plt.ylabel('mas')
+        plt.xlabel('mas')
+        # plt.show()
+        plt.draw()
+        return self.scatter_image
+
 
     def start(self):
 
