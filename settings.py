@@ -46,7 +46,7 @@ plt.style.use('dark_background')
 G = constants.G.value
 c2 = constants.c.value ** 2
 CONVERSION_FACTOR = 3.086e19 * (deg2rad * sec2deg / 1e3) ** 2
-
+flux = 0.01448780487804878
 
 # data_old15kHz.txt = readData()
 # mask = data_old15kHz.txt[3] < -3

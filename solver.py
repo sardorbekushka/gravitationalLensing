@@ -124,9 +124,11 @@ class Solver:
         self.countMatch = None
         self.countMatch1 = None
         self.dev = None
+        self.fluxDev = None
         self.createMatch()
         self.createMatch1()
         self.createDev()
+        self.createFluxDev()
 
     def createMatch(self):
         t, x, dx, y, dy, l, dl = self.real_data
@@ -149,6 +151,12 @@ class Solver:
         dp = np.vstack([dx, dy]).T
 
         self.dev = lambda pp: dev(pp, p, dp)
+
+    def createFluxDev(self):
+        t, x, dx, y, dy, l, dl = self.real_data
+        p = np.vstack([x, y]).T
+
+        self.fluxDev = lambda pp, mm: flux_dev(pp, p, mm, l, dl)
 
     def createMatch1(self):
         t, x, dx, y, dy, l, dl = self.real_data1
@@ -338,7 +346,7 @@ class Solver:
         self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, d1, self.source.width)
 
     def declineSource(self, k):
-        self.setLength(self.source.d1 + k * self.stepLength)
+        self.setLength(self.source.d1 * 1.1 ** k)
 
     def getEinsteinRadius(self):
         return self.einsteinRadius(self.source.D_s)

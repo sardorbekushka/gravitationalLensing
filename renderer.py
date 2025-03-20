@@ -17,8 +17,8 @@ class Renderer:
         self.ax.set_ylabel('mas')
         # self.ax.set_xlim([-0.25, 0.25])
         # self.ax.set_ylim([-4.2, -3.2])
-        self.showSource = True
-        self.showImage = False
+        self.showSource = False
+        self.showImage = True
         self.showMagnification = True
         self.showData = True
 
@@ -39,13 +39,13 @@ class Renderer:
                      rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
-                     rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
+                     rf'jet direction: {round(self.solver.getSourceDirection(), 5)}$^\circ$')
 
         self.title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
         self.ax.set_title(self.title, fontsize=12)
 
         bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
-        self.text_block = self.ax.text(0.53, 0.99, self.data, fontsize=12, bbox=bbox,
+        self.text_block = self.ax.text(0.64, 0.99, self.data, fontsize=8, bbox=bbox,
                                        color=g,
                                        horizontalalignment='left', verticalalignment='top',
                                        transform=self.ax.transAxes)
@@ -56,10 +56,14 @@ class Renderer:
 
     def initialize_plot(self):
         self.lens_pos = self.ax.scatter([], [], marker='x', c='r')
+        #
+        # self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1, vmax=100))
+        # self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
+        # self.cbar.set_label('magnification')
 
-        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1, vmax=100))
+        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux))
         self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
-        self.cbar.set_label('magnification')
+        self.cbar.set_label('flux, Jy')
 
         self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.2)
 
@@ -71,7 +75,7 @@ class Renderer:
 
         # data_old15kHz.txt = readData()
         data = self.solver.real_data
-        self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.1, markersize=0.5)
+        self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.15, markersize=0.5)
         # self.real_data = self.ax.scatter(data_old15kHz.txt[1], data_old15kHz.txt[3], c=data_old15kHz.txt[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1.6))
 
     def generate_filename(self):
@@ -159,10 +163,10 @@ class Renderer:
         if self.showMagnification:
             self.scatter_image.set_array(m)
             self.scatter_image.set_cmap('inferno')
-            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1, vmax=100))
+            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux))
             self.scatter_source.set_array([10])
             self.scatter_source.set_norm(colors.Normalize(vmin=1, vmax=2))
-            self.cbar.set_label('magnification', color=g)
+            self.cbar.set_label('flux, Jy', color=g)
 
         else:
             self.scatter_image.set_array(self.order)
@@ -189,10 +193,11 @@ class Renderer:
                      rf'$\theta_E$: {"{:.3e}".format(self.solver.getEinsteinRadius())} mas' + '\n' +
                      rf'$z_s$: {self.solver.source.z}' + '\n' +
                      r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
-                     rf'jet direction: {round(self.solver.getSourceDirection(), 2)}$^\circ$')
+                     rf'jet direction: {round(self.solver.getSourceDirection(), 5)}$^\circ$')
 
     def show(self):
         p, m = self.solver.processImage()
+        m *= flux
         ll = self.solver.getLensCenter()
         e_an = self.solver.getEinsteinRadius()
         theta = np.linspace(0, 2 * np.pi, 100)
@@ -227,12 +232,3 @@ class Renderer:
         self.cbar.update_normal(self.show())
 
         plt.show()
-
-    def gif(self):
-        cbar = plt.colorbar(self.show(), ax=self.ax)
-        cbar.set_label('ln(magnification)', color=g)
-        cbar.ax.tick_params(labelcolor=g)
-        for i in range(100):
-            plt.savefig(f'images/image{i}.png', dpi=150)
-            self.solver.moveLens([5, 0])
-            self.show()
