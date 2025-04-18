@@ -13,13 +13,7 @@ model = LambdaCDM(H0=67.8, Om0=0.308, Ode0=0.692)
 g = np.array([0.8, 0.8, 0.9])
 # rc('font', **{'family': 'Times new roman'})
 # rc('font', **{'family': 'DejaVu Sans'})
-rc('text', usetex=True)
-# rc('text.latex',unicode=True)
-rc('text.latex', preamble=r'\usepackage[utf8]{inputenc}')
-rc('text.latex', preamble=r'\usepackage[russian]{babel}')
-rc('axes', edgecolor=g)
-
-lim = [[-2, 2], [-5, 2]] # [по горизонтали, по вертикали]. или None чтобы ограничение шло по углу Эйнштейна
+ # [по горизонтали, по вертикали]. или None чтобы ограничение шло по углу Эйнштейна
 # lim = [[-1, 1], [-2.5, 1]] # [по горизонтали, по вертикали]. или None чтобы ограничение шло по углу Эйнштейна
 
 # if lim

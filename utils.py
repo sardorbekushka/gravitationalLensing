@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.distance import cdist
+from settings import model
+from scipy.interpolate import interp1d
+
 
 def readData(filename='src/data_15kHz.txt', cut=True, year=2016):
     ## в new 12 точек (0,0), в old 16
@@ -25,30 +28,26 @@ def flux_dev(p1, p2, m1, m2, dm2):
 
     return np.sum(weights * (m2 - m1[nearest_indices]) ** 2) / len(m2)
 
-def huber_loss(e, c=1.345):
-    return np.where(e <= c, e**2/2, c *e - c**2/2)
+def D2z_convertor(z1=0, z2=0.3365):
+    z = np.linspace(z1, z2, 10000)
+    Dl = model.angular_diameter_distance(z).to('kpc').value
 
-def robust_fit(p1, p2, dp2):
-    weights = 1 / (np.linalg.norm(dp2, axis=1))
-    e = dist(p1, p2) ** 0.5 * weights   # Нормированные отклонения
-    return np.sum(huber_loss(e)) / len(e)
-
-def log_cosh(p1, p2, dp2):
-    weights = 1 / (np.linalg.norm(dp2, axis=1))
-    e = dist(p1, p2) ** 0.5 * weights  # Нормированные отклонения
-    return np.sum(np.log(np.cosh(e))) / len(e)
-
-#
-# from scipy.interpolate import interp1d
-#
-# x = [1, 2, 5, 6]
-# y = [1, 4, 3, 5]
-# #
-# # f = interp1d(x, y, kind='cubic')
-# # x_ = np.linspace(1, 6, 20)
-# # plt.plot(x_, f(x_))
-# # plt.scatter(x, y)
-# # plt.show()
+    return interp1d(Dl, z, kind='cubic')
 
 
+def Dls2Dl_convertor(zs=0.3365, z1=0, z2=0.3365):
+    z = np.linspace(z1, z2, 10000)
+    Dls = model.angular_diameter_distance_z1z2(z, zs).to('kpc').value
+    Dl = model.angular_diameter_distance(z).to('kpc').value
 
+    return interp1d(Dls, Dl, kind='cubic')
+
+def Ds2Dls_convertor(zl, z2=0.3365):
+    z = np.linspace(zl, z2, 10000)
+    Dls = model.angular_diameter_distance_z1z2(zl, z).to('kpc').value
+    Ds = model.angular_diameter_distance(z).to('kpc').value
+
+    return interp1d(Ds, Dls, kind='cubic')
+
+# a = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]], [[9, 10], [11, 12]]])
+# print(np.concatenate([a[:, 0], a[:, 1]]))

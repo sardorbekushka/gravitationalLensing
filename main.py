@@ -107,8 +107,7 @@ d1 = 2253.2890993624756 #2.4997594593459875 0.7209121099976119 5.66843074482963
 # D_ls = D_s*0.999999
 
 solver = Solver(Lens(mass=M, D_ls=D_ls, center=np.array([x, y])),
-                Source(z=0.3365, source_type='line', x0=0, x1=x1, y0=0.0, y1=-4, d0=0, d1=d1),
-                filename='src/data_15kHz.txt')
+                Source(z=0.3365, source_type='line', x0=0, x1=x1, y0=0.0, y1=-4, d0=0, d1=d1))
 # print(solver.D_l)
 # print(solver.Dl2z(D_s))
 
