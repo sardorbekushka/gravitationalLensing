@@ -1,5 +1,6 @@
 from settings import *
 from utils import *
+from scipy.interpolate import interp1d
 
 class Lens:
     def __init__(self, mass=1e40, D_ls=7, center=np.array([0.0, 0.0])) -> None:
@@ -102,15 +103,23 @@ class Solver:
         :param lens: an object of the Lens class. the lens of the system
         :param source: an object of the Source class. the source of the system
         """
+
         self.lens = lens
         self.source = source
         self.stepMass = 1.2
-        self.stepPos = 1e-3
+        self.stepPos = 1e-1
         self.stepLength = 1
-        self.D_l = self.source.D_s - self.lens.D_ls
-        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
+        # self.D_l = self.source.D_s - self.lens.D_ls
         self.points = []
         self.image_points = np.array([])
+
+        self.Dls2Dl = self.getDls2Dl(0, self.source.z)
+        self.Dl2z = self.getDl2z(0, self.source.z)
+        self.D_l = self.Dls2Dl(self.lens.D_ls)
+        self.z_l = self.Dl2z(self.D_l)
+        self.Ds2Dls = self.getDs2Dls()
+
+        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
         self.real_data = np.concatenate([readData(filename), readData('src/data_old15kHz.txt')], axis=1)
         # self.real_data = readData(filename)
@@ -129,6 +138,28 @@ class Solver:
         self.createMatch1()
         self.createDev()
         self.createFluxDev()
+
+    def getDls2Dl(self, z1, z2):
+        z = np.linspace(z1, z2, 10000)
+        Dls = model.angular_diameter_distance_z1z2(z, self.source.z).to('kpc').value
+        Dl = model.angular_diameter_distance(z).to('kpc').value
+
+        return interp1d(Dls, Dl, kind='cubic')
+
+    def getDl2z(self, z1, z2):
+        z = np.linspace(z1, z2, 10000)
+        Dl = model.angular_diameter_distance(z).to('kpc').value
+
+        return interp1d(Dl, z, kind='cubic')
+
+    def getDs2Dls(self):
+        z = np.linspace(self.z_l, 0.3365, 10000)
+        Dls = model.angular_diameter_distance_z1z2(self.z_l, z).to('kpc').value
+        Ds = model.angular_diameter_distance(z).to('kpc').value
+
+        return interp1d(Ds, Dls, kind='cubic')
+
+
 
     def createMatch(self):
         t, x, dx, y, dy, l, dl = self.real_data
@@ -179,10 +210,10 @@ class Solver:
         :param D_s: an angular diameter distance of point
         :return: the Einstein radius in arcseconds
         """
-        D_ls = D_s - self.D_l
 
-        return 0 if D_ls < 0 else np.sqrt(self.k * D_ls / D_s)
+        return 0 if D_s < self.D_l else np.sqrt(self.k * self.Ds2Dls(D_s) / D_s)
         # return np.sqrt(self.k * D_ls / D_s)
+
 
     def einsteinRadiusZ(self, z):
         """
@@ -203,7 +234,9 @@ class Solver:
 
         beta = np.linalg.norm(dp)
         beta2 = beta ** 2
-        ea2 = self.einsteinRadius(self.source.D_s - d) ** 2
+        ea2 = self.einsteinRadius(self.Dls2Dl(d)) ** 2
+        # print(ea2)
+        # print(d)
 
         theta1 = (beta + np.sqrt(beta2 + 4 * ea2)) / 2
         theta2 = (beta - np.sqrt(beta2 + 4 * ea2)) / 2
@@ -235,10 +268,10 @@ class Solver:
         dy = dy_min
 
 
-        # dmin = 5e-3
-        # dmax = 1e-2
-        dmin = 1e-4
-        dmax = 5e-4
+        dmin = 5e-3
+        dmax = 1e-2
+        # dmin = 1e-4
+        # dmax = 5e-4
 
         while y > self.source.y1:
             i += 1
@@ -305,7 +338,6 @@ class Solver:
         # self.points =
 
     def updateSource(self, x1, d1):
-
         self.source.updateLineSource(self.source.x0, x1, self.source.y0, self.source.y1, self.source.d0, d1, self.source.width)
 
     def getEfficiency_(self):
@@ -313,6 +345,13 @@ class Solver:
 
     def getEfficiency(self):
         return self.dev(self.image_points.T)
+
+    def getEfficiency1(self):
+        t, x, dx, y, dy, l, dl = self.real_data
+        p = np.vstack([x, y]).T
+        dp = np.vstack([dx, dy]).T
+
+        return log_cosh(self.image_points.T, p, dp)
 
     def changeWidth(self, k):
         self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, self.source.d1, self.source.width + 0.5 * k)
@@ -325,22 +364,24 @@ class Solver:
 
     def setDls(self, Dls):
         self.lens.D_ls = Dls
-        self.D_l = self.source.D_s - self.lens.D_ls
+        self.D_l = self.Dls2Dl(Dls)
+        self.z_l = self.Dl2z(self.D_l)
+        self.Dls2Ds = self.getDls2Ds()
 
     def moveDls(self, k):
         self.setDls(self.lens.D_ls + k * self.stepLength)
 
     def changeMass(self, k):
         self.lens.m *= self.stepMass ** k
-        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
+        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
     def decreaseMass(self):
         self.lens.m /= self.stepMass
-        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
+        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
     def setMass(self, M):
         self.lens.m = M
-        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.source.D_s / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
+        self.k = 4 * constants.G.value * self.lens.m / constants.c.value ** 2 / self.D_l / 3.086e19 / (deg2rad * sec2deg / 1e3) ** 2
 
     def setLength(self, d1):
         self.source.updateLineSource(self.source.x0, self.source.x1, self.source.y0, self.source.y1, self.source.d0, d1, self.source.width)

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from PIL.ImageOps import scale
 from matplotlib.backend_bases import MouseButton
 import numpy as np
 from solver import*
@@ -7,7 +8,11 @@ from settings import *
 from scipy.ndimage import gaussian_filter
 
 class Renderer:
-    def __init__(self, solver, ax) -> None:
+    def __init__(self, solver) -> None:
+        figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 7 * 1.24, 7) if lim else (5, 7)
+        plt.figure(figsize=figsize, facecolor='black')
+        plt.style.use('dark_background')
+        ax = plt.axes()
         self.solver = solver
         self.ax = ax
         # self.ax.set_xlim([-2, 2])
@@ -196,7 +201,7 @@ class Renderer:
                      r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
                      rf'jet direction: {round(self.solver.getSourceDirection(), 5)}$^\circ$')
 
-    def show_(self):
+    def show(self):
         p, m = self.solver.processImage()
         m *= flux
         ll = self.solver.getLensCenter()
@@ -220,7 +225,7 @@ class Renderer:
 
         return self.scatter_image
 
-    def show(self):
+    def show_blur(self):
         self.ax.clear()
         p, m = self.solver.processImage()
         m *= flux
@@ -234,24 +239,30 @@ class Renderer:
         xx = np.round((p[0] + 2) / 4 * N).astype(int)
         yy = np.round((p[1] + 5) / 7 * M).astype(int)
 
-
         image[yy, xx] = m
         image = np.nan_to_num(image)
 
         sigma_x = sx / 4 * N  # Параметр размытия (чем больше, тем сильнее размытие)
         sigma_y = sy / 7 * M  # Параметр размытия (чем больше, тем сильнее размытие)
-        sigma = np.array([sigma_y, sigma_x]) / 2
+        sigma = np.array([sigma_y, sigma_x]) / 2.35482
 
         blurred_image = gaussian_filter(image, sigma=sigma)
-
-        self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower')
+        blurred_image[blurred_image <= 0] = 1e-10
+        self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower', vmin=0, vmax=1e-3)
+        # self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower', norm=colors.LogNorm(vmin=1e-5, vmax=1e-3))
 
         plt.ylabel('mas')
         plt.xlabel('mas')
+
+        lens_center = self.solver.lens.center
+        circle = plt.Circle(lens_center, self.solver.getEinsteinRadius(), color='gray', linestyle='dotted',
+                            fill=False)  # Центр (0.5, 0.5), радиус 0.2
+        self.ax.add_patch(circle)
+        self.ax.scatter(lens_center[0], lens_center[1], marker='x', c='r')
+
         # plt.show()
         plt.draw()
         return self.scatter_image
-
 
     def start(self):
 

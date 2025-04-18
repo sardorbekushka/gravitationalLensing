@@ -7,7 +7,6 @@ from matplotlib import rc
 import matplotlib.colors as colors
 import os
 
-
 # model = LambdaCDM(H0=70, Om0=0.3, Ode0=0.7)
 model = LambdaCDM(H0=67.8, Om0=0.308, Ode0=0.692)
 
@@ -33,16 +32,14 @@ lim = [[-2, 2], [-5, 2]] # [по горизонтали, по вертикали
 sec2deg = 1 / 3600
 deg2rad = np.pi / 180
 asec = 0.000012120342027738
-figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 7 * 1.24, 7) if lim else (5, 7)
-plt.figure(figsize=figsize, facecolor='black')
+
 arcsec = 180 * 3600 / np.pi
 rad = np.pi / 180
 L = 2e-2 # kpc
-plt.style.use('dark_background')
 # plt.rcParams.update({'font.size': 14})
 
 
-
+kpc2m = 3.086e19
 G = constants.G.value
 c2 = constants.c.value ** 2
 CONVERSION_FACTOR = 3.086e19 * (deg2rad * sec2deg / 1e3) ** 2
