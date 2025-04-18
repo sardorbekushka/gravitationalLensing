@@ -1,8 +1,6 @@
 import numpy as np
-
 from settings import *
 from utils import *
-from scipy.interpolate import interp1d
 
 rs_coeff = 2 * constants.G.value / constants.c.value ** 2
 mas2m = deg2rad * sec2deg / 1e3
@@ -96,7 +94,6 @@ class Solver:
         self._setup_lens(self.lens.D_ls)
 
     def _setup_lens(self, Dls):
-        # print(Dls)
         self.lens.D_ls = Dls
         self.lens.set_Dl(self.Dls2Dl(Dls))
         self.lens.set_z(self.Dl2z(self.lens.D_l))

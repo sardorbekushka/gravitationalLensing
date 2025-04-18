@@ -1,286 +1,257 @@
 import matplotlib.pyplot as plt
-from PIL.ImageOps import scale
-from matplotlib.backend_bases import MouseButton
 import numpy as np
-from solver import*
-from settings import *
+from matplotlib.backend_bases import MouseButton
+from matplotlib import colors, rc
 from scipy.ndimage import gaussian_filter
+from solver import Solver
+from settings import g, flux, model
+
 
 class Renderer:
-    def __init__(self, solver) -> None:
+    def __init__(self, solver: Solver) -> None:
+        self.solver = solver
+        self._setup_plot_config()
+        self._initialize_plot_components()
+        self._setup_ui_state()
+        self._create_info_panel()
+
+    def _setup_plot_config(self):
+        """Configure matplotlib settings and figure appearance"""
         rc('text', usetex=True)
-        # rc('text.latex',unicode=True)
-        rc('text.latex', preamble=r'\usepackage[utf8]{inputenc}')
-        rc('text.latex', preamble=r'\usepackage[russian]{babel}')
+        rc('text.latex', preamble=(
+            r'\usepackage[utf8]{inputenc}'
+            r'\usepackage[russian]{babel}'
+        ))
         rc('axes', edgecolor=g)
 
-        lim = [[-2, 2], [-5, 2]]
-        figsize = ((lim[0][1] - lim[0][0]) / (lim[1][1] - lim[1][0]) * 7 * 1.24, 7) if lim else (5, 7)
+        self.limits = [[-2, 2], [-5, 2]]
+        aspect_ratio = (self.limits[0][1] - self.limits[0][0]) / (self.limits[1][1] - self.limits[1][0])
+        figsize = (aspect_ratio * 7 * 1.24, 7)
+
         plt.figure(figsize=figsize, facecolor='black')
         plt.style.use('dark_background')
-        ax = plt.axes()
-        self.solver = solver
-        self.ax = ax
-        # self.ax.set_xlim([-2, 2])
-        # self.ax.set_ylim([-5, 2])
-        self.ax.set_xlim(lim[0])
-        self.ax.set_ylim(lim[1])
+        self.ax = plt.axes()
+        self.ax.set_xlim(self.limits[0])
+        self.ax.set_ylim(self.limits[1])
         self.ax.set_xlabel('mas')
         self.ax.set_ylabel('mas')
-        # self.ax.set_xlim([-0.25, 0.25])
-        # self.ax.set_ylim([-4.2, -3.2])
-        self.showSource = False
-        self.showImage = True
-        self.showMagnification = True
-        self.showData = True
 
-        self.scatter_image = None
-        self.scatter_source = None
-        self.lens_circle = None
-        self.lens_pos = None
-        self.order = None
-        self.real_image = None
-        self.real_data = None
-
-        # self.order2 = [val for pair in zip(order, order) for val in pair]
-        self.cbar = None
-
-        self.initialize_plot()
-
-        self.data = (rf'mass: {"{:.3e}".format(self.solver.get_lens_mass)} kg' + '\n' +
-                     rf'$\theta_E$: {"{:.3e}".format(self.solver.get_einstein_radius)} mas' + '\n' +
-                     rf'$z_s$: {self.solver.source.z}' + '\n' +
-                     r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
-                     rf'jet direction: {round(self.solver.get_source_direction, 5)}$^\circ$')
-
-        self.title = rf'$H_0$: {model.H0}, $\Omega_M$: {model.Om0}, $\Omega_0$: {model.Ode0} '
-        self.ax.set_title(self.title, fontsize=12)
-
-        bbox = dict(boxstyle='round', fc=g, ec=g/2, alpha=0.3)
-        self.text_block = self.ax.text(0.64, 0.99, self.data, fontsize=8, bbox=bbox,
-                                       color=g,
-                                       horizontalalignment='left', verticalalignment='top',
-                                       transform=self.ax.transAxes)
-
-    def updateOrder(self):
-        order = np.arange(len(self.solver.get_source_points))
-        self.order = order
-
-    def initialize_plot(self):
+    def _initialize_plot_components(self):
+        """Initialize all visualization components"""
+        # Lens visualization
         self.lens_pos = self.ax.scatter([], [], marker='x', c='r')
-        #
-        # self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1, vmax=100))
-        # self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
-        # self.cbar.set_label('magnification')
+        self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
 
-        self.scatter_image = self.ax.scatter([], [], c=[], cmap='inferno', s=5, norm=colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux))
+        # Image and source visualization
+        self.scatter_image = self.ax.scatter(
+            [], [], c=[], cmap='inferno', s=5,
+            norm=colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux)
+        )
+        self.scatter_source = self.ax.scatter(
+            [], [], c=[], cmap='viridis', s=0.5, alpha=0.2
+        )
+
+        # Color bar setup
         self.cbar = plt.colorbar(self.scatter_image, ax=self.ax)
         self.cbar.set_label('flux, Jy')
 
-        self.scatter_source = self.ax.scatter([], [] , c=[], cmap='viridis', s=0.5, alpha=0.2)
-
-        self.lens_circle, = self.ax.plot([], [], color=g, linewidth=1, linestyle=':')
-
-
+        # Layer ordering
         self.scatter_source.set_zorder(1)
         self.scatter_image.set_zorder(2)
 
-        # data_old15kHz.txt = readData()
-        # data = self.solver.real_data
-        # self.real_data = self.ax.errorbar(data[1], data[3], data[4], data[2], c=[0, 1, 1], fmt='o', elinewidth=0.15, markersize=0.5)
-        # self.real_data = self.ax.scatter(data_old15kHz.txt[1], data_old15kHz.txt[3], c=data_old15kHz.txt[5], cmap='inferno', s=0.5, norm=colors.LogNorm(vmin=0.001, vmax=1.6))
+    def _setup_ui_state(self):
+        """Initialize UI state flags"""
+        self.show_source = False
+        self.show_image = True
+        self.show_magnification = True
+        self.show_data = True
+        self.order = None
 
-    def generate_filename(self):
-        s = self.solver
-        m = s.get_lens_mass
-        pos = s.get_lens_center
-        a = s.get_source_direction
-        return f'top10/M{"{:.4e}".format(m)}_X{"{:.4e}".format(pos[0])}Y{"{:.4e}".format(pos[1])}_A{"{:.4g}".format(a)}_D1_{"{:.2g}".format(s.source.d1)}_X1_{"{:.4g}".format(s.source.x1)}.png'
+    def _create_info_panel(self):
+        """Create the information text panel"""
+        solver = self.solver
+        self.data = (
+            f'mass: {solver.get_lens_mass:.3e} kg\n'
+            f'$\\theta_E$: {solver.get_einstein_radius:.3e} mas\n'
+            f'$z_s$: {solver.source.z}\n'
+            f'$D_{{ls}}:$ {round(solver.lens.D_ls, 2)} kpc\n'
+            f'jet direction: {round(solver.get_source_direction, 5)}$^\\circ$'
+        )
 
-    # def generate_filename_(self):
-    #     e = self.solver.getEfficiency()
-    #     return self.generate_filename()[:-4] + f'_{"{:.4g}".format(e[0])}_{"{:.4g}".format(e[1])}' + '.png'
+        self.title = (
+            f'$H_0$: {model.H0}, '
+            f'$\\Omega_M$: {model.Om0}, '
+            f'$\\Omega_0$: {model.Ode0}'
+        )
+        self.ax.set_title(self.title, fontsize=12)
 
-    def handleKeyEvent(self, event):
-        shift_size = 0.5
-        shift_map = {
-            'right': [shift_size, 0],
-            'left': [-shift_size, 0],
-            'up': [0, shift_size],
-            'down': [0, -shift_size]
-        }
+        bbox = dict(boxstyle='round', fc=g, ec=g / 2, alpha=0.3)
+        self.text_block = self.ax.text(
+            0.64, 0.99, self.data, fontsize=8, bbox=bbox,
+            color=g, horizontalalignment='left',
+            verticalalignment='top', transform=self.ax.transAxes
+        )
 
-        shift = shift_map.get(event.key, [0.0, 0])
+    def update_order(self):
+        """Update the point ordering for visualization"""
+        self.order = np.arange(len(self.solver.get_source_points))
 
-        if event.key in shift_map:
-            self.solver.move_lens(shift)
-
-        toggle_map = {
-            'm': 'showMagnification', 'ь': 'showMagnification',
-            'h': 'showSource', 'р': 'showSource',
-            'd': 'showData', 'в': 'showData',
-            'i': 'showImage', 'ш': 'showImage'
-        }
-
-        if event.key in toggle_map:
-            setattr(self, toggle_map[event.key], not getattr(self, toggle_map[event.key]))
-
-        action_map = {
-            # 'enter': lambda: plt.savefig(self.generate_filename_(), dpi=150),
-            '+': lambda: self.solver.change_mass(1),
-            '_': lambda: self.solver.change_mass(-1),
-            # 'e': lambda: print(self.solver.getEfficiency()),
-            # 'E': lambda: print(self.solver.getEfficiency())
-        }
-
-        if event.key in action_map:
-            action_map[event.key]()
-
-        decline_map = {
-            'w': 1, 'z': -1, 'ц': 1, 'я': -1
-        }
-
-        if event.key in decline_map:
-            direction = decline_map[event.key]
-            self.solver.decline_source(direction)
-
-        move_lens_map = {
-            'W': -1, 'Z': 1, 'Ц': -1, 'Я': 1
-        }
-
-        if event.key in move_lens_map:
-            shift = move_lens_map[event.key]
-            self.solver.move_Dls(shift)
-        #
-        # width_change_map = {
-        #     'u': 1, 'г': 1, 'U': -1, 'Г': -1
-        # }
-        #
-        # if event.key in width_change_map:
-        #     k = width_change_map[event.key]
-        #     self.solver.changeWidth(k)
-
-        self.updateData()
-        self.show()
-
-    def handleMouseEvent(self, event):
-        if event.inaxes:
-            if event.button is MouseButton.LEFT:
-                mouse_pos = (np.array([event.xdata, event.ydata]))
-                self.solver.set_lens_center(mouse_pos)
-
-        self.show()
-
-    def checkFlags(self, m):
-        if self.showMagnification:
-            self.scatter_image.set_array(m)
+    def _update_visualization_state(self, magnification):
+        """Update visualization based on current state flags"""
+        if self.show_magnification:
+            self.scatter_image.set_array(magnification)
             self.scatter_image.set_cmap('inferno')
-            self.scatter_image.set_norm(colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux))
-            self.scatter_source.set_array([10])
-            self.scatter_source.set_norm(colors.Normalize(vmin=1, vmax=2))
+            self.scatter_image.norm = colors.LogNorm(vmin=0.1 * flux, vmax=100 * flux)
             self.cbar.set_label('flux, Jy', color=g)
-
         else:
             self.scatter_image.set_array(self.order)
             self.scatter_image.set_cmap('viridis')
-            self.scatter_image.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
-            self.scatter_source.set_array(self.order)
-            self.scatter_source.set_cmap('viridis')
-            self.scatter_source.set_norm(colors.Normalize(vmin=self.order[0], vmax=self.order[-1]))
+            self.scatter_image.norm = colors.Normalize(
+                vmin=self.order[0], vmax=self.order[-1]
+            )
             self.cbar.set_label('point order', color=g)
 
-        # for item in self.real_data.lines:
-        #     if hasattr(item, 'set_visible'):
-        #         item.set_visible(self.showImage)
-        #     elif isinstance(item, tuple):
-        #         for sub_item in item:
-        #             if hasattr(sub_item, 'set_visible'):
-        #                 sub_item.set_visible(self.showImage)
+        self.scatter_source.set_visible(self.show_source)
+        self.text_block.set_visible(self.show_data)
 
-        self.scatter_source.set_visible(self.showSource)
-        self.text_block.set_visible(self.showData)
-
-    def updateData(self):
-        self.data = (rf'mass: {"{:.3e}".format(self.solver.get_lens_mass)} kg' + '\n' +
-                     rf'$\theta_E$: {"{:.3e}".format(self.solver.get_einstein_radius)} mas' + '\n' +
-                     rf'$z_s$: {self.solver.source.z}' + '\n' +
-                     r'$D_{ls}:$' + f'{round(self.solver.lens.D_ls, 2)} kpc \n' +
-                     rf'jet direction: {round(self.solver.get_source_direction, 5)}$^\circ$')
-
-    def show(self):
-        p, m = self.solver.process_image()
-        m *= flux
-        ll = self.solver.get_lens_center
-        e_an = self.solver.get_einstein_radius
-        theta = np.linspace(0, 2 * np.pi, 100)
-        self.updateOrder()
-        self.checkFlags(m)
-        self.scatter_image.set_offsets(p)
-        # print(p)
-        pp = self.solver.get_source_points
-        self.scatter_source.set_offsets(pp)
-
-        x = e_an * np.cos(theta) + ll[0]
-        y = e_an * np.sin(theta) + ll[1]
-        self.lens_circle.set_data(x, y)
-        self.lens_pos.set_offsets(ll)
-
+    def update_data(self):
+        """Update the information panel data"""
+        solver = self.solver
+        self.data = (
+            f'mass: {solver.get_lens_mass:.3e} kg\n'
+            f'$\\theta_E$: {solver.get_einstein_radius:.3e} mas\n'
+            f'$z_s$: {solver.source.z}\n'
+            f'$D_{{ls}}:$ {round(solver.lens.D_ls, 2)} kpc\n'
+            f'jet direction: {round(solver.get_source_direction, 5)}$^\\circ$'
+        )
         self.text_block.set_text(self.data)
 
+    def show(self):
+        """Update and redraw the visualization"""
+        positions, magnification = self.solver.process_image()
+        magnification *= flux
 
-        plt.draw()
+        # Update point ordering
+        self.update_order()
 
-        return self.scatter_image
+        # Update visualization elements
+        self.scatter_image.set_offsets(positions)
+        self.scatter_source.set_offsets(self.solver.get_source_points)
+        self._update_visualization_state(magnification)
 
-    def show_blur(self):
-        self.ax.clear()
-        p, m = self.solver.process_image()
-        m *= flux
+        # Update lens visualization
+        center = self.solver.get_lens_center
+        radius = self.solver.get_einstein_radius
+        theta = np.linspace(0, 2 * np.pi, 100)
+        x = radius * np.cos(theta) + center[0]
+        y = radius * np.sin(theta) + center[1]
 
-        N = 400
-        M = 700
-        sx = 0.48
-        sy = 1.06
-
-        image = np.zeros((M, N), dtype=np.float64)
-        xx = np.round((p[0] + 2) / 4 * N).astype(int)
-        yy = np.round((p[1] + 5) / 7 * M).astype(int)
-
-        image[yy, xx] = m
-        image = np.nan_to_num(image)
-
-        sigma_x = sx / 4 * N  # Параметр размытия (чем больше, тем сильнее размытие)
-        sigma_y = sy / 7 * M  # Параметр размытия (чем больше, тем сильнее размытие)
-        sigma = np.array([sigma_y, sigma_x]) / 2.35482
-
-        blurred_image = gaussian_filter(image, sigma=sigma)
-        blurred_image[blurred_image <= 0] = 1e-10
-        self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower', vmin=0, vmax=1e-3)
-        # self.scatter_image = plt.imshow(blurred_image, cmap='hot', extent=[-2, 2, -5, 2], origin='lower', norm=colors.LogNorm(vmin=1e-5, vmax=1e-3))
-
-        plt.ylabel('mas')
-        plt.xlabel('mas')
-
-        lens_center = self.solver.get_lens_center
-        circle = plt.Circle(lens_center, self.solver.get_einstein_radius(), color='gray', linestyle='dotted',
-                            fill=False)  # Центр (0.5, 0.5), радиус 0.2
-        self.ax.add_patch(circle)
-        self.ax.scatter(lens_center[0], lens_center[1], marker='x', c='r')
+        self.lens_circle.set_data(x, y)
+        self.lens_pos.set_offsets([center])
 
         plt.draw()
         return self.scatter_image
+
+    def _setup_event_handlers(self):
+        """Connect UI event handlers"""
+        plt.connect('key_press_event', self._handle_key_event)
+        plt.connect('motion_notify_event', self._handle_mouse_event)
+        plt.connect('button_press_event', self._handle_mouse_event)
+
+    def _handle_key_event(self, event):
+        """Handle keyboard input events"""
+        # Movement controls
+        movement = {
+            'right': [0.5, 0], 'left': [-0.5, 0],
+            'up': [0, 0.5], 'down': [0, -0.5]
+        }.get(event.key)
+
+        if movement:
+            self.solver.move_lens(movement)
+
+        # Toggle controls
+        toggles = {
+            'm': 'show_magnification', 'ь': 'show_magnification',
+            'h': 'show_source', 'р': 'show_source',
+            'd': 'show_data', 'в': 'show_data',
+            'i': 'show_image', 'ш': 'show_image'
+        }.get(event.key)
+
+        if toggles:
+            setattr(self, toggles, not getattr(self, toggles))
+
+        # Mass controls
+        if event.key in {'+', '_'}:
+            self.solver.change_mass(1 if event.key == '+' else -1)
+
+        # Source controls
+        if event.key in {'w', 'z', 'ц', 'я'}:
+            direction = 1 if event.key in {'w', 'ц'} else -1
+            self.solver.decline_source(direction)
+
+        # Distance controls
+        if event.key in {'W', 'Z', 'Ц', 'Я'}:
+            direction = -1 if event.key in {'W', 'Ц'} else 1
+            self.solver.move_Dls(direction)
+
+        self.update_data()
+        self.show()
+
+    def _handle_mouse_event(self, event):
+        """Handle mouse events"""
+        if event.inaxes and event.button is MouseButton.LEFT:
+            self.solver.set_lens_center([event.xdata, event.ydata])
+            self.show()
 
     def start(self):
-
+        """Start the interactive visualization"""
         self.ax.set_facecolor(g / 10)
         plt.grid(linestyle=':', color=g / 2)
         plt.tick_params(axis='x', colors=g)
         plt.tick_params(axis='y', colors=g)
-        key_id = plt.connect('key_press_event', self.handleKeyEvent)
-        mouseMove_id = plt.connect('motion_notify_event', self.handleMouseEvent)
-        mouseClick_id = plt.connect('button_press_event', self.handleMouseEvent)
 
+        self._setup_event_handlers()
         self.cbar.update_normal(self.show())
-
         plt.show()
 
+    def show_blur(self):
+        """Show blurred version of the image"""
+        self.ax.clear()
+        positions, magnification = self.solver.process_image()
+        magnification *= flux
+
+        # Image dimensions and scaling
+        width, height = 400, 700
+        x_scale = width / (self.limits[0][1] - self.limits[0][0])
+        y_scale = height / (self.limits[1][1] - self.limits[1][0])
+
+        # Create and blur image
+        image = np.zeros((height, width), dtype=np.float64)
+        x_coords = ((positions[:, 0] - self.limits[0][0]) * x_scale).astype(int)
+        y_coords = ((positions[:, 1] - self.limits[1][0]) * y_scale).astype(int)
+
+        image[y_coords, x_coords] = magnification
+        image = np.nan_to_num(image)
+
+        # Gaussian blur parameters
+        sigma_x = 0.48 / 4 * width / 2.35482
+        sigma_y = 1.06 / 7 * height / 2.35482
+        blurred = gaussian_filter(image, sigma=[sigma_y, sigma_x])
+        blurred[blurred <= 0] = 1e-10
+
+        # Display blurred image
+        self.scatter_image = self.ax.imshow(
+            blurred, cmap='hot', extent=self.limits[0] + self.limits[1],
+            origin='lower', vmin=0, vmax=1e-3
+        )
+
+        # Add lens indicator
+        center = self.solver.get_lens_center
+        self.ax.add_patch(plt.Circle(
+            center, self.solver.get_einstein_radius(),
+            color='gray', linestyle=':', fill=False
+        ))
+        self.ax.scatter(center[0], center[1], marker='x', c='r')
+
+        plt.draw()
+        return self.scatter_image
